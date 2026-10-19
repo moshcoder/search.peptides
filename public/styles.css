@@ -266,3 +266,16 @@ summary { cursor: pointer; }
 .tbl .stock { text-align: center; width: 1%; }
 @media (max-width: 520px) { .tbl.tight th, .tbl.tight td { padding: 5px 6px; } .tbl .stock { font-size: 0; } .tbl td.stock span { font-size: 0.86rem; } .tbl .ext { display: none; } }
 @media (max-width: 340px) { .cp-ad[data-cp-filled][data-format="banner_300x250"] { margin-inline: calc(50% - 50vw); } }
+
+/* Skip link: off screen until a keyboard reaches it. */
+.skip { position: absolute; left: 8px; top: -48px; z-index: 50; padding: 8px 12px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.skip:focus { top: 8px; }
+main:focus { outline: none; }
+
+/* The plain-words answers under a peptide's listings. */
+.faq { margin: 32px 0 8px; }
+.faq h3 { margin: 18px 0 4px; font-size: 1rem; }
+.faq p { margin: 0; max-width: 72ch; }
+.related { margin: 20px 0; }
+.prose { max-width: 72ch; }
+.prose h2 { margin-top: 28px; }
