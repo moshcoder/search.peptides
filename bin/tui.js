@@ -56,7 +56,7 @@ export async function runTui({ api }) {
     if (st.detail) {
       const v = st.detail;
       lines.push(`  ${g(v.name)}  ${dim(v.ships_from.join(', ') || v.location || '')}`);
-      lines.push(`  score ${v.score ?? '—'} · lab ${v.tests_pass}/${v.tests_pass + v.tests_fail} passed · ${v.offers} listings`);
+      lines.push(`  verified ${v.verification_score ?? (v.verification?.status === 'insufficient' ? 'insufficient data' : '—')} · Finnrick ${v.score ?? '—'} · lab ${v.tests_pass}/${v.tests_pass + v.tests_fail} passed · ${v.offers} listings`);
       lines.push('');
       for (const e of v.contact.emails) lines.push(`  email     ${e}`);
       for (const p of v.contact.phones) lines.push(`  phone     ${p}`);
@@ -66,16 +66,16 @@ export async function runTui({ api }) {
       for (const t of v.lab_tests.slice(0, 8)) lines.push(dim(`  ${pad(t.peptide, 28)} ${pad(t.result, 6)} ${t.tested_on ?? ''}`));
       lines.push('', `  ${g(v.page)}`);
     } else if (st.tab === 'listings' && st.listings) {
-      lines.push(dim(`  ${pad('listing', 38)}${pad('vendor', 24)}${pad('price', 8)}${pad('per mg', 12)}score`));
+      lines.push(dim(`  ${pad('listing', 38)}${pad('vendor', 24)}${pad('price', 8)}${pad('per mg', 12)}verified`));
       rowsNow().slice(0, rows - lines.length - 2).forEach((o, i) => {
-        const line = `  ${pad(o.name ?? o.peptide, 38)}${pad(o.vendor_name, 24)}${pad(usd(o.price_usd), 8)}${pad(mg(o), 12)}${o.vendor_score ?? '—'}${o.passed_test ? ' ✓' : ''}`;
+        const line = `  ${pad(o.name ?? o.peptide, 38)}${pad(o.vendor_name, 24)}${pad(usd(o.price_usd), 8)}${pad(mg(o), 12)}${o.vendor_verification_score ?? '—'}${o.passed_test ? ' ✓' : ''}`;
         lines.push(i === st.sel ? inv(pad(line, cols - 1)) : line);
       });
     } else if (st.tab === 'vendors' && st.vendors) {
-      lines.push(dim(`  ${pad('vendor', 32)}${pad('score', 7)}${pad('lab', 12)}${pad('listings', 10)}contact`));
+      lines.push(dim(`  ${pad('vendor', 32)}${pad('verified', 9)}${pad('lab', 12)}${pad('listings', 10)}contact`));
       rowsNow().slice(0, rows - lines.length - 2).forEach((v, i) => {
         const reach = [v.contact.emails[0], v.contact.phones[0], ...Object.keys(v.contact.socials)].filter(Boolean).join(' ');
-        const line = `  ${pad(v.name, 32)}${pad(v.score ?? '—', 7)}${pad(v.tests_pass + v.tests_fail ? `${v.tests_pass}/${v.tests_pass + v.tests_fail}` : '—', 12)}${pad(v.offers || '—', 10)}${reach}`;
+        const line = `  ${pad(v.name, 32)}${pad(v.verification_score ?? '—', 9)}${pad(v.tests_pass + v.tests_fail ? `${v.tests_pass}/${v.tests_pass + v.tests_fail}` : '—', 12)}${pad(v.offers || '—', 10)}${reach}`;
         lines.push(i === st.sel ? inv(pad(line, cols - 1)) : line);
       });
     }

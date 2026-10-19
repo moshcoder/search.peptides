@@ -3,6 +3,7 @@ import { activeChips, buildFacets, omit, priceOptions } from './core/facets.js';
 import { countryName, PAYMENT_LABELS } from './core/normalize.js';
 import { fromParams, toParams } from './core/parse.js';
 import { getMeta, open } from './db.js';
+import { recentScoreChanges, RULES, scoreHistory, verificationOf, vendorTests } from './score.js';
 
 /**
  * Everything the site answers comes through here, for the page, the API, the CLI
@@ -46,8 +47,9 @@ function contactCard(rows = []) {
   return card;
 }
 
-function shapeVendor(r, sponsored, contactRows) {
+function shapeVendor(r, sponsored, contactRows, scoreRow) {
   const tested = r.tests_pass + r.tests_fail;
+  const verification = verificationOf(scoreRow, r.slug);
   return {
     slug: r.slug,
     name: r.name,
@@ -55,6 +57,10 @@ function shapeVendor(r, sponsored, contactRows) {
     shop_url: r.shop_url,
     location: r.location,
     country: r.country,
+    // Ours: 0-100 from evidence we can link to, every component shown (src/score.js, /rules). Null = unscored.
+    verification_score: verification.score,
+    verification,
+    // Finnrick's rating as the register published it.
     score: r.score,
     rank: r.rank,
     tests: r.tests,
@@ -98,7 +104,8 @@ function load() {
   const sponsored = new Set(db.query("SELECT vendor FROM sponsors WHERE status = 'paid' AND until > ?").all(now).map((r) => r.vendor));
   const contacts = new Map();
   for (const c of db.query('SELECT vendor, kind, value FROM vendor_contacts ORDER BY kind, value').all()) (contacts.get(c.vendor) ?? contacts.set(c.vendor, []).get(c.vendor)).push(c);
-  const vendors = db.query('SELECT * FROM vendors').all().map((r) => shapeVendor(r, sponsored, contacts.get(r.slug)));
+  const scores = new Map(db.query('SELECT * FROM vendor_scores').all().map((r) => [r.vendor, r]));
+  const vendors = db.query('SELECT * FROM vendors').all().map((r) => shapeVendor(r, sponsored, contacts.get(r.slug), scores.get(r.slug)));
   const bySlug = new Map(vendors.map((v) => [v.slug, v]));
   const passed = new Set(db.query("SELECT DISTINCT vendor, peptide_slug FROM lab_tests WHERE result = 'pass'").all().map((r) => `${r.vendor}|${r.peptide_slug}`));
   // A vendor whose own shop we read shows those prices, not the register's older ones.
@@ -154,6 +161,7 @@ function offerMatches(o, f) {
   if (f.single && o.blend) return false;
   if (f.blend && !o.blend) return false;
   if (f.min_score !== undefined && !(v.score >= f.min_score)) return false;
+  if (f.min_verification !== undefined && !(v.verification_score >= f.min_verification)) return false;
   if (f.payment && !v.payments.includes(f.payment)) return false;
   if (f.ships_from && !v.ships_from.includes(f.ships_from)) return false;
   if (f.ordering && v.ordering !== f.ordering) return false;
@@ -167,6 +175,7 @@ function offerMatches(o, f) {
   return true;
 }
 
+const VERIFICATION_STEPS = [80, 70, 60, 50, 1].map((n) => ({ key: String(n), label: n === 1 ? 'Any score (scored only)' : `${n} or better`, set: { min_verification: n } }));
 const FORM_LABELS = { vial: 'Vial', supply: 'Supplies', liquid: 'Liquid', spray: 'Nasal spray', capsule: 'Capsule', topical: 'Topical', pen: 'Pen' };
 const ORDERING_LABELS = { checkout: 'Online checkout', message: 'Order by message', marketplace: 'Marketplace', login: 'Members only' };
 
@@ -187,7 +196,8 @@ function offerFacetDefs(c, f) {
     { name: 'price', label: 'Price (USD)', open: true, params: ['min_price', 'max_price'], options: priceOptions([25, 50, 100, 200, 500], '$').filter((o) => o.key !== 'free') },
     { name: 'size', label: 'Size per vial', open: true, params: ['min_mg', 'max_mg'], options: [[0, 5, 'up to 5 mg'], [5, 10, '5 to 10 mg'], [10, 20, '10 to 20 mg'], [20, 50, '20 to 50 mg'], [50, undefined, '50 mg or more']].map(([lo, hi, label]) => ({ key: `${lo}-${hi ?? ''}`, label, set: { min_mg: lo || undefined, max_mg: hi } })) },
     { name: 'quality', label: 'Lab testing', open: true, independent: true, options: [{ key: 'tested', label: 'Vendor is lab-tested', set: { tested: true } }, { key: 'passed', label: 'Passed a test for this peptide', set: { passed: true } }, { key: 'in_stock', label: 'In stock', set: { in_stock: true } }, { key: 'coupon', label: 'Has a coupon', set: { coupon: true } }] },
-    { name: 'score', label: 'Vendor score', open: true, options: [90, 80, 70, 60, 50].map((n) => ({ key: String(n), label: `${n} or better`, set: { min_score: n } })) },
+    { name: 'verification', label: 'Verification score', open: true, options: VERIFICATION_STEPS },
+    { name: 'score', label: 'Finnrick rating', options: [90, 80, 70, 60, 50].map((n) => ({ key: String(n), label: `${n} or better`, set: { min_score: n } })) },
     { name: 'payment', label: 'Pay with', open: true, sort: 'count', options: Object.entries(PAYMENT_LABELS).map(([k, label]) => ({ key: k, label, set: { payment: k } })) },
     { name: 'ships_from', label: 'Ships from', sort: 'count', limit: 30, options: ships.map((s) => ({ key: s, label: countryName(s), set: { ships_from: s } })) },
     { name: 'form', label: 'Form', sort: 'count', options: Object.entries(FORM_LABELS).map(([k, label]) => ({ key: k, label, set: { form: k } })) },
@@ -246,6 +256,7 @@ const OFFER_SORTS = {
   per_mg: (a, b) => (a.unit === 'mg' ? (a.usd_per_mg ?? inf) : inf) - (b.unit === 'mg' ? (b.usd_per_mg ?? inf) : inf) || (a.price_usd ?? inf) - (b.price_usd ?? inf),
   price: (a, b) => (a.price_usd ?? inf) - (b.price_usd ?? inf),
   score: (a, b) => (b.v.score ?? -1) - (a.v.score ?? -1) || (a.usd_per_mg ?? inf) - (b.usd_per_mg ?? inf),
+  verification: (a, b) => (b.v.verification_score ?? -1) - (a.v.verification_score ?? -1) || (a.usd_per_mg ?? inf) - (b.usd_per_mg ?? inf),
   size: (a, b) => (b.total_mg ?? -1) - (a.total_mg ?? -1),
   name: (a, b) => a.peptide.localeCompare(b.peptide) || a.vendor_name.localeCompare(b.vendor_name),
 };
@@ -257,6 +268,8 @@ export const publicOffer = (o) => ({
   name: o.name,
   vendor: o.vendor,
   vendor_name: o.vendor_name,
+  vendor_verification_score: o.v.verification_score,
+  vendor_verification_status: o.v.verification.status,
   vendor_score: o.v.score,
   vendor_tests: o.v.tests,
   passed_test: o.passed,
@@ -340,6 +353,7 @@ export const PRICE_NOTE = "Prices are each vendor's own, converted to USD on the
 
 function vendorMatches(v, f) {
   if (f.min_score !== undefined && !(v.score >= f.min_score)) return false;
+  if (f.min_verification !== undefined && !(v.verification_score >= f.min_verification)) return false;
   if (f.min_pass !== undefined && !(v.pass_rate >= f.min_pass)) return false;
   if (f.tested && !v.tests) return false;
   if (f.priced && !v.offers) return false;
@@ -360,6 +374,7 @@ const hasContact = (v, kind) => (kind === 'email' ? v.contact.emails.length > 0 
 export const CONTACT_LABELS = { email: 'Email', phone: 'Phone', website: 'Website', whatsapp: 'WhatsApp', telegram: 'Telegram', instagram: 'Instagram', x: 'X (Twitter)', facebook: 'Facebook', discord: 'Discord', tiktok: 'TikTok', youtube: 'YouTube', reddit: 'Reddit', linkedin: 'LinkedIn', signal: 'Signal' };
 
 const VENDOR_SORTS = {
+  verification: (a, b) => (b.verification_score ?? -1) - (a.verification_score ?? -1) || (b.verification.status === 'insufficient') - (a.verification.status === 'insufficient') || b.tests - a.tests || a.name.localeCompare(b.name),
   score: (a, b) => (b.score ?? -1) - (a.score ?? -1) || b.tests - a.tests || a.name.localeCompare(b.name),
   tests: (a, b) => b.tests - a.tests || (b.score ?? -1) - (a.score ?? -1),
   pass_rate: (a, b) => (b.pass_rate ?? -1) - (a.pass_rate ?? -1) || b.tests - a.tests,
@@ -376,7 +391,7 @@ export function searchVendors(input, opts = {}) {
     for (const v of c.vendors) Object.defineProperty(v, '_peps', { value: peps.get(v.slug) ?? new Set(), enumerable: false });
   }
   const { filters: f, understood, text } = input?.filters ? input : parse(input);
-  const sort = VENDOR_SORTS[f.sort] ? f.sort : 'score';
+  const sort = VENDOR_SORTS[f.sort] ? f.sort : 'verification';
   const rows = c.vendors.filter((v) => vendorMatches(v, f)).sort(VENDOR_SORTS[sort]);
   const pinned = rows.filter((v) => v.sponsored).slice(0, 2);
   const limit = opts.all ? Math.max(rows.length, 1) : Math.min(opts.limit ?? 100, 500);
@@ -385,7 +400,8 @@ export function searchVendors(input, opts = {}) {
   if (opts.facets) {
     const ships = tally(c.vendors, (v) => v.ships_from);
     const defs = [
-      { name: 'score', label: 'Vendor score', open: true, options: [90, 80, 70, 60, 50].map((n) => ({ key: String(n), label: `${n} or better`, set: { min_score: n } })) },
+      { name: 'verification', label: 'Verification score', open: true, options: VERIFICATION_STEPS },
+      { name: 'score', label: 'Finnrick rating', options: [90, 80, 70, 60, 50].map((n) => ({ key: String(n), label: `${n} or better`, set: { min_score: n } })) },
       { name: 'pass', label: 'Lab pass rate', open: true, options: [100, 90, 75, 50].map((n) => ({ key: String(n), label: n === 100 ? 'Every test passed' : `${n}% or more passed`, set: { min_pass: n } })) },
       { name: 'has', label: 'Has', open: true, independent: true, options: [{ key: 'tested', label: 'Lab test results', set: { tested: true } }, { key: 'priced', label: 'Published prices', set: { priced: true } }, { key: 'coupon', label: 'A coupon', set: { coupon: true } }] },
       { name: 'payment', label: 'Pay with', open: true, sort: 'count', options: Object.entries(PAYMENT_LABELS).map(([k, label]) => ({ key: k, label, set: { payment: k } })) },
@@ -415,6 +431,9 @@ export function getVendor(slug) {
     ...v,
     lab_tests: db.query('SELECT peptide, peptide_slug, tested_on, result FROM lab_tests WHERE vendor = ? ORDER BY tested_on DESC').all(slug),
     ratings: db.query('SELECT peptide, peptide_slug, rating, n_tests, cost_per_mg FROM ratings WHERE vendor = ? ORDER BY rating DESC').all(slug),
+    // The verification score's evidence: every independent test with its public record, and how the score moved.
+    independent_tests: vendorTests(slug),
+    score_history: scoreHistory(slug),
     listings: c.offers.filter((o) => o.vendor === slug).sort(OFFER_SORTS.name).map(publicOffer),
   };
 }
@@ -438,6 +457,16 @@ export function getPeptide(slug) {
 // The day the register was last read; a database loaded from the bundled snapshot has only a 1970 placeholder.
 export const syncedDay = (s) => (s.synced_at && !String(s.synced_at).startsWith('1970') ? String(s.synced_at).slice(0, 10) : null);
 
+/** The rules, today's spread of scores and the latest changes: /rules and /api/v1/rules. */
+export function rulesReport(limit = 50) {
+  const c = load();
+  const by = { scored: 0, insufficient: 0, unscored: 0 };
+  for (const v of c.vendors) by[v.verification.status] = (by[v.verification.status] ?? 0) + 1;
+  const scored = c.vendors.map((v) => v.verification_score).filter(Number.isFinite).sort((a, b) => a - b);
+  const median = scored.length ? scored[Math.floor(scored.length / 2)] : null;
+  return { rules: RULES, vendors: by, median_score: median, tests_read_at: getMeta('finnrick_tests_at'), recent_changes: recentScoreChanges(limit) };
+}
+
 export function stats() {
   const c = load();
   return {
@@ -448,6 +477,8 @@ export function stats() {
     lab_tests: c.vendors.reduce((n, v) => n + v.tests, 0),
     vendors_with_email: c.vendors.filter((v) => v.contact.emails.length).length,
     vendors_with_phone: c.vendors.filter((v) => v.contact.phones.length).length,
+    vendors_scored: c.vendors.filter((v) => Number.isFinite(v.verification_score)).length,
+    tests_read_at: getMeta('finnrick_tests_at'),
     enriched_at: getMeta('enriched_at'),
     synced_at: getMeta('synced_at'),
     source: getMeta('synced_from'),

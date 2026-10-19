@@ -3,6 +3,7 @@
  * add an entry with any change a visitor would notice. `pr` links to the pull request.
  */
 export const CHANGELOG = [
+  { date: '2026-10-19', pr: 22, title: 'A verification score, and the rules behind it', text: 'Every vendor now has a 0 to 100 verification score built only from evidence you can check: independent test results, whether each certificate names its lab, is lot-specific and has a public record, how many tests and how recent, blind sampling, Finnrick’s rating and the vendor’s published terms. Vendors without enough evidence say “insufficient data” instead of getting a number. The new Rules page has the criteria, the formula and its weights, the sources and how often they are read, and every score change; each vendor page shows its components, evidence, last-verified date and score history.' },
   { date: '2026-10-19', pr: 20, title: 'Faster under load, a changelog, PubMed links', text: 'Pages are served by several processes at once, so a crawl over every filter no longer slows the site down. Each peptide page links to its PubMed research, and this changelog started.' },
   { date: '2026-10-19', pr: 19, title: 'One address per page', text: 'An address ending in a slash now goes to the page without it instead of “not found”.' },
   { date: '2026-10-19', pr: 18, title: 'Dates, and the CLI on npm', text: 'Pages say when prices were last checked. `bunx searchpeptides` now installs the command-line tool from npm.' },

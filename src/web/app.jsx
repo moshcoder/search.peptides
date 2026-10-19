@@ -6,11 +6,12 @@ import { CHANGELOG } from '../changelog.js';
 import { handle, TOOLS } from '../mcp.js';
 import { pitFooterStyleHashes } from '../pit-footer.ts';
 import { RING_PLACEHOLDER, ringBar, visitorOnMoshpit } from '../ring.ts';
-import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, PRICE_NOTE, publicOffer, searchOffers, searchVendors, stats } from '../service.js';
+import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, PRICE_NOTE, publicOffer, rulesReport, searchOffers, searchVendors, stats } from '../service.js';
 import { payConfigured, settle, startSponsor, verifyWebhook } from '../sponsor.js';
 import { open } from '../db.js';
 import { version } from '../version.js';
-import { AboutPage, ChangelogPage, Docs, ListingsPage, MessagePage, MethodologyPage, PeptidesPage, PrivacyPage, SponsorPage, syncedDay, TermsPage, VendorPage, VendorsPage } from './views/pages.jsx';
+import { RULES } from '../score.js';
+import { AboutPage, ChangelogPage, Docs, ListingsPage, MessagePage, MethodologyPage, PeptidesPage, PrivacyPage, RulesPage, SponsorPage, syncedDay, TermsPage, VendorPage, VendorsPage } from './views/pages.jsx';
 
 export const app = new Hono();
 const PUBLIC = resolve(new URL('../../public', import.meta.url).pathname);
@@ -95,6 +96,7 @@ app.get('/docs', (c) => html(c, <Docs stats={stats()} />));
 app.get('/about', (c) => html(c, <AboutPage stats={stats()} />));
 app.get('/changelog', (c) => html(c, <ChangelogPage entries={CHANGELOG} />));
 app.get('/methodology', (c) => html(c, <MethodologyPage stats={stats()} />));
+app.get('/rules', (c) => html(c, <RulesPage report={rulesReport()} stats={stats()} changelog={CHANGELOG} />));
 app.get('/privacy', (c) => html(c, <PrivacyPage />));
 app.get('/terms', (c) => html(c, <TermsPage />));
 
@@ -155,6 +157,11 @@ app.get('/api/v1/peptides/:slug', (c) => {
   return p ? json(c, p) : json(c, { error: 'no such peptide' }, 404);
 });
 app.get('/api/v1/stats', (c) => json(c, stats()));
+// The verification score's rules, weights and the latest score changes across every vendor.
+app.get('/api/v1/rules', (c) => {
+  const limit = Number(c.req.query('limit') ?? 50);
+  return json(c, { ...rulesReport(Math.min(Number.isFinite(limit) ? limit : 50, 500)), page: `${config.siteUrl}/rules` });
+});
 // The whole register in one document: nichedb.dev's `peptides` collection reads this daily.
 app.get('/api/v1/export', (c) => {
   const vendors = searchVendors({ filters: {}, understood: [], text: '' }, { all: true }).vendors;
@@ -201,7 +208,7 @@ app.get('/sitemap.xml', (c) => {
   const day = (iso) => (iso ? String(iso).slice(0, 10) : null);
   const synced = syncedDay(stats());
   const urls = [
-    ...['/', '/vendors', '/peptides', '/docs', '/about', '/changelog', '/methodology', '/sponsor'].map((u) => [u, synced]),
+    ...['/', '/vendors', '/peptides', '/rules', '/docs', '/about', '/changelog', '/methodology', '/sponsor'].map((u) => [u, synced]),
     ...listPeptides().filter((p) => p.offers).map((p) => [`/p/${p.slug}`, synced]),
     ...open().query('SELECT slug, checked_at FROM vendors').all().map((v) => [`/v/${v.slug}`, day(v.checked_at) ?? synced]),
   ];
@@ -232,18 +239,20 @@ function llms() {
 For researchers comparing research-peptide vendors on price, independent lab results and how to reach them. ${DISCLOSURE}
 
 ## About
-- [How we score and price](${config.siteUrl}/methodology): vendor score, lab tests, what "passed" means, price per mg, freshness
+- [Rules](${config.siteUrl}/rules): the verification score: what counts as a verifiable COA, the formula and weights, sources, refresh, every score change
+- [How we price](${config.siteUrl}/methodology): price per mg, lab tests, what "passed" means, freshness
 - [Full context](${config.siteUrl}/llms-full.txt): this file plus the methodology and every peptide with its numbers
 
 ## Search
 - [Listings](${config.siteUrl}/?text=bpc-157+in+stock): faceted search; free text like "retatrutide lab tested under $1/mg"
-- [Vendors](${config.siteUrl}/vendors): score, lab pass rate, payment, ships from, contact
+- [Vendors](${config.siteUrl}/vendors): verification score, lab pass rate, payment, ships from, contact
 - [Peptides](${config.siteUrl}/peptides): every peptide with vendors and lowest $/mg
 
 ## API (JSON, no key)
 - ${config.siteUrl}/api/v1/search?text=...  (filters: peptide vendor max_per_mg max_price min_score in_stock tested passed payment ships_from ordering form sort page)
-- ${config.siteUrl}/api/v1/vendors?contact=email&min_score=80
-- ${config.siteUrl}/api/v1/vendors/{slug}
+- ${config.siteUrl}/api/v1/vendors?contact=email&min_verification=70  (sort=verification is the default)
+- ${config.siteUrl}/api/v1/vendors/{slug}  (verification: score, components, evidence; independent_tests; score_history)
+- ${config.siteUrl}/api/v1/rules  (formula, weights, recent score changes)
 - ${config.siteUrl}/api/v1/peptides/{slug}
 - ${config.siteUrl}/api/v1/export  (the whole register)
 
@@ -269,7 +278,8 @@ function llmsFull() {
 ## How we score and price
 
 - Price per mg: the vendor's own price, converted to USD on the day it was read, divided by the listing's total mg (vial size times vials in the pack). Listings in IU or other units are ranked by that unit, never against mg.
-- Vendor score: Finnrick's 0-100 score (https://www.finnrick.com), shown as published; not computed, adjusted or sold here. No Finnrick record means unscored.
+- Verification score (verification_score, 0-100): computed here from evidence that can be checked, never sold. ${RULES.components.map((c) => `${c.label} ${c.weight}`).join(', ')}. At least ${RULES.min_tests} classifiable independent tests in ${RULES.window_days / 365} years or the vendor shows "insufficient data"/"unscored" instead of a number. Full rules: ${config.siteUrl}/rules
+- Finnrick rating (score): Finnrick's own 0-100 rating (https://www.finnrick.com), shown as published.
 - Lab tests: Finnrick's independent test results for the vendor. "passed_test" on a listing means the vendor has at least one passing test for that peptide, not that the exact batch was tested.
 - Contacts: read from each vendor's own website weekly and Finnrick's vendor records every 3 days.
 - Freshness: prices and lab results re-read hourly; new vendors looked for every 6 hours. Last read: ${syncedDay(s) ? s.synced_at : 'unknown'}.
@@ -294,12 +304,13 @@ Ask the API; no key needed.
 
 \`\`\`sh
 curl -s '${config.siteUrl}/api/v1/search?text=tirzepatide+lab+tested+under+$1/mg&limit=10'
-curl -s '${config.siteUrl}/api/v1/vendors?contact=email&min_score=80'
-curl -s '${config.siteUrl}/api/v1/vendors/<slug>'   # contact card, lab tests, listings
+curl -s '${config.siteUrl}/api/v1/vendors?contact=email&min_verification=70'
+curl -s '${config.siteUrl}/api/v1/vendors/<slug>'   # verification score + components, contact card, lab tests, listings
+curl -s '${config.siteUrl}/api/v1/rules'            # how the verification score is computed
 \`\`\`
 
 Or add the MCP server: \`claude mcp add peptides -- bunx searchpeptides mcp\`.
 
-Prices are USD; \`usd_per_mg\` is the ranking number. \`passed_test\` means the vendor passed an independent lab test for that peptide. ${DISCLOSURE}
+Prices are USD; \`usd_per_mg\` is the ranking number. \`verification_score\` is null when evidence is insufficient; say so rather than guessing. \`passed_test\` means the vendor passed an independent lab test for that peptide. ${DISCLOSURE}
 `;
 }

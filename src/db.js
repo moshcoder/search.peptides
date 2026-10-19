@@ -119,6 +119,64 @@ function migrate(d) {
       PRIMARY KEY (vendor, kind, value)
     );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    -- The verification score's evidence (src/finnrick.js) and the score itself (src/score.js).
+    CREATE TABLE IF NOT EXISTS finnrick_tests (
+      record_id TEXT PRIMARY KEY,
+      vendor TEXT NOT NULL,
+      peptide TEXT,
+      peptide_slug TEXT,
+      tested_on TEXT,
+      classifiable INTEGER NOT NULL DEFAULT 0,
+      passed INTEGER,
+      reasons TEXT NOT NULL DEFAULT '[]',
+      purity TEXT,
+      deviation TEXT,
+      identity TEXT,
+      test_type TEXT,
+      batch TEXT,
+      lab_name TEXT,
+      lab_code TEXT,
+      coa INTEGER NOT NULL DEFAULT 0,
+      sent_by TEXT,
+      label TEXT,
+      seen_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS finnrick_tests_vendor ON finnrick_tests(vendor, tested_on);
+    CREATE TABLE IF NOT EXISTS finnrick_ratings (
+      vendor TEXT PRIMARY KEY,
+      rating REAL,
+      observed REAL,
+      classifiable INTEGER,
+      pass INTEGER,
+      fail INTEGER,
+      rank INTEGER,
+      classifier TEXT,
+      scored_on TEXT,
+      seen_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS vendor_scores (
+      vendor TEXT PRIMARY KEY,
+      score INTEGER,
+      status TEXT NOT NULL,
+      rules_version INTEGER NOT NULL,
+      components TEXT NOT NULL,
+      computed_at TEXT NOT NULL,
+      verified_at TEXT,
+      changed_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS score_log (
+      id INTEGER PRIMARY KEY,
+      vendor TEXT NOT NULL,
+      at TEXT NOT NULL,
+      old_score INTEGER,
+      new_score INTEGER,
+      old_status TEXT,
+      new_status TEXT NOT NULL,
+      rules_version INTEGER NOT NULL,
+      why TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS score_log_vendor ON score_log(vendor, at);
+    CREATE INDEX IF NOT EXISTS score_log_at ON score_log(at);
   `);
   // Columns added after the first release: a database made before them gets them here.
   const have = new Set(d.query('PRAGMA table_info(vendors)').all().map((c) => c.name));
