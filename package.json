@@ -21,7 +21,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@profullstack/scraper-daemon": "0.2.0",
+    "@profullstack/scraper-daemon": "0.2.1",
     "bullmq": "6.3.17",
     "hono": "^4.10.3",
     "ioredis": "5"
