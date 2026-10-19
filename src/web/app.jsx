@@ -29,6 +29,9 @@ app.use('*', compress());
 app.use('*', async (c, next) => {
   await next();
   for (const [k, v] of Object.entries({ ...SECURITY, 'content-security-policy': csp() })) if (!c.res.headers.has(k)) c.res.headers.set(k, v);
+  // Pages change when the register is re-read (hourly); five minutes in the browser is safe. Private: the
+  // ring bar differs between a Moshpit visitor and a relay visitor, so no shared cache may keep one copy.
+  if (c.req.method === 'GET' && c.res.status === 200 && c.res.headers.get('content-type')?.startsWith('text/html') && !c.res.headers.has('cache-control')) c.res.headers.set('cache-control', 'private, max-age=300');
   // HSTS only on the pit.world relay, a public name with a public certificate. The Moshpit name
   // itself gets none: a promise about a name the public DNS does not own (see the nginx vhost).
   if (c.req.header('x-moshpit-name') || /\.pit\.world(:\d+)?$/i.test(c.req.header('host') ?? '')) c.res.headers.set('strict-transport-security', 'max-age=31536000');

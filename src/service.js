@@ -421,6 +421,9 @@ export function getPeptide(slug) {
   return { ...p, lab_results: byVendor, page: `${config.siteUrl}/p/${slug}` };
 }
 
+// The day the register was last read; a database loaded from the bundled snapshot has only a 1970 placeholder.
+export const syncedDay = (s) => (s.synced_at && !String(s.synced_at).startsWith('1970') ? String(s.synced_at).slice(0, 10) : null);
+
 export function stats() {
   const c = load();
   return {

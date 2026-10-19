@@ -1,6 +1,7 @@
 import { config } from '../../config.js';
 import { countryName, PAYMENT_LABELS } from '../../core/normalize.js';
 import { toParams } from '../../core/parse.js';
+import { syncedDay } from '../../service.js';
 import { Layout, REPO } from './Layout.jsx';
 import { ActiveChips, Chips, FacetRail, ORDERING, OfferRow, Pager, passText, perMg, ResultsHead, scoreText, size, usd, VendorRow } from './parts.jsx';
 
@@ -27,9 +28,6 @@ claude mcp add peptides -- bunx searchpeptides mcp   # tool: ${tool}`}</pre>
   );
 }
 
-/** The home page and /p/:slug: every listing, faceted. */
-// The day the register was last read; a database loaded from the bundled snapshot has only a 1970 placeholder.
-export const syncedDay = (stats) => (stats.synced_at && !String(stats.synced_at).startsWith('1970') ? String(stats.synced_at).slice(0, 10) : null);
 
 /** Plain-words answers from the data, shown on an unfiltered peptide page and repeated as FAQPage JSON-LD. */
 function peptideFaq(peptide, offers, stats) {
@@ -90,6 +88,7 @@ function peptideJsonld(peptide, result, faq) {
   ];
 }
 
+/** The home page and /p/:slug: every listing, faceted. */
 export function ListingsPage({ result, stats, text, peptide = null, base = '/', related = [] }) {
   const f = result.query.filters;
   const searched = text || Object.keys(f).some((k) => k !== 'page');
@@ -110,6 +109,12 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
             {peptide.offers} listings from {peptide.vendors} vendors
             {Number.isFinite(peptide.min_usd_per_mg) ? `, from $${peptide.min_usd_per_mg}/mg` : ''}.{' '}
             {peptide.tests ? `${peptide.tests_pass} of ${peptide.tests} independent lab tests passed.` : 'No independent lab tests on record.'}
+            {syncedDay(stats) ? (
+              <>
+                {' '}
+                Prices checked <time datetime={syncedDay(stats)}>{syncedDay(stats)}</time>.
+              </>
+            ) : null}
           </p>
           {plain ? (
             <p class="prose muted">
@@ -145,6 +150,13 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
           <h1>{searched ? (text ? `Listings for “${text}”` : 'Peptide listings') : 'Every research peptide, every vendor, one search'}</h1>
           <p class="lede">
             {stats.listings.toLocaleString('en-US')} listings from {stats.vendors_with_prices} vendors across {stats.peptides} peptides, ranked by price per mg, with independent lab results for {stats.vendors} vendors and their contact details.
+            {searched ? null : ' For researchers comparing research-peptide vendors before they buy.'}
+            {!searched && syncedDay(stats) ? (
+              <>
+                {' '}
+                Prices checked <time datetime={syncedDay(stats)}>{syncedDay(stats)}</time>.
+              </>
+            ) : null}
           </p>
           <form class="bigsearch" action="/" method="get" role="search">
             <input name="text" value={text} placeholder="retatrutide lab tested under $1/mg" autocomplete="off" autofocus={!searched} />
@@ -158,6 +170,13 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
                   {e}
                 </a>
               ))}
+            </p>
+          ) : null}
+          {!searched ? (
+            <p class="cta">
+              <a class="btn" href="/docs">Use the free API, CLI or MCP</a>
+              <a class="btn ghost" href="/sponsor">Sponsor your shop</a>
+              <a class="btn ghost" href="/methodology">How we score and price</a>
             </p>
           ) : null}
           {searched ? <ApiReadout result={result} tool="search_listings" /> : null}
@@ -489,7 +508,24 @@ export function MessagePage({ title, message, status }) {
 export function Docs({ stats }) {
   const base = config.siteUrl;
   return (
-    <Layout title="API, CLI and MCP" path="/docs" description="The search.peptides REST API, CLI, TUI and MCP server: the same peptide listing and vendor search as the site, with no key and no account.">
+    <Layout
+      title="API, CLI and MCP"
+      path="/docs"
+      description="The search.peptides REST API, CLI, TUI and MCP server: the same peptide listing and vendor search as the site, with no key and no account."
+      jsonld={{
+        '@type': 'SoftwareApplication',
+        name: 'searchpeptides',
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Linux, macOS, Windows (Bun)',
+        description: 'Keyless REST API, CLI, TUI and MCP server for research-peptide listings and vendors: price per mg, independent lab results, payment, shipping and contact details.',
+        url: `${base}/docs`,
+        downloadUrl: 'https://www.npmjs.com/package/searchpeptides',
+        softwareHelp: `${base}/llms.txt`,
+        codeRepository: REPO,
+        offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
+        publisher: { '@id': `${base}/#org` },
+      }}
+    >
       <h1>API, CLI and MCP</h1>
       <p class="lede">The same search everywhere. No key, no account. {stats.listings.toLocaleString('en-US')} listings, {stats.vendors} vendors.</p>
       <h2>REST</h2>
@@ -650,4 +686,4 @@ export function TermsPage() {
   );
 }
 
-export { PAYMENT_LABELS };
+export { PAYMENT_LABELS, syncedDay };
