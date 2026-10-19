@@ -3,8 +3,9 @@
  * search.peptides CLI. Same query as the page and the API.
  *
  *   peptides search "retatrutide lab tested under $1/mg" [--json] [--in-stock] [--ships-from US] [--sort price] …
- *   peptides vendors [--contact email] [--min-score 80] [--json]
- *   peptides vendor <slug> [--json]          contact card, lab tests, listings
+ *   peptides vendors [--contact email] [--min-verification 70] [--json]
+ *   peptides vendor <slug> [--json]          verification score, contact card, lab tests, listings
+ *   peptides rules [--json]                  how the verification score is computed
  *   peptides peptide <slug> [--json]         lab results by vendor
  *   peptides peptides [--json]
  *   peptides stats
@@ -54,6 +55,7 @@ async function localCall(path, params) {
   if (path === '/api/v1/peptides') return { ...s.stats(), peptides: s.listPeptides() };
   if (path.startsWith('/api/v1/peptides/')) return s.getPeptide(path.split('/').pop()) ?? { error: 'no such peptide' };
   if (path === '/api/v1/stats') return s.stats();
+  if (path === '/api/v1/rules') return s.rulesReport(Number(params.limit ?? 20));
   throw new Error(`no local route ${path}`);
 }
 
@@ -65,8 +67,8 @@ const usd = (n) => (Number.isFinite(n) ? `$${n < 10 ? n.toFixed(2) : n.toFixed(0
 const mg = (o) => (Number.isFinite(o.usd_per_mg) ? `$${o.usd_per_mg.toFixed(o.usd_per_mg < 1 ? 3 : 2)}/${o.unit ?? 'mg'}` : '—');
 
 export function renderOffers(list, sponsored = []) {
-  const out = [c.d(`${pad('listing', 40)}${pad('vendor', 24)}${pad('size', 13)}${pad('price', 8)}${pad('per mg', 12)}score`)];
-  const line = (o, tag = '') => `${tag}${pad(o.name ?? o.peptide, 40 - tag.length)}${pad(o.vendor_name, 24)}${pad(`${o.amount ?? ''}${o.unit ?? ''}${o.pack_qty > 1 ? `×${o.pack_qty}` : ''}`, 13)}${pad(usd(o.price_usd), 8)}${pad(mg(o), 12)}${o.vendor_score ?? '—'}${o.passed_test ? c.g(' ✓') : ''}`;
+  const out = [c.d(`${pad('listing', 40)}${pad('vendor', 24)}${pad('size', 13)}${pad('price', 8)}${pad('per mg', 12)}verified`)];
+  const line = (o, tag = '') => `${tag}${pad(o.name ?? o.peptide, 40 - tag.length)}${pad(o.vendor_name, 24)}${pad(`${o.amount ?? ''}${o.unit ?? ''}${o.pack_qty > 1 ? `×${o.pack_qty}` : ''}`, 13)}${pad(usd(o.price_usd), 8)}${pad(mg(o), 12)}${verified(o.vendor_verification_score, o.vendor_verification_status)}${o.passed_test ? c.g(' ✓') : ''}`;
   for (const o of sponsored) out.push(c.b(line(o, '★ ')));
   for (const o of list) out.push(line(o));
   if (!list.length) out.push(c.d('no listing matches every filter'));
@@ -74,13 +76,14 @@ export function renderOffers(list, sponsored = []) {
   return out.join('\n');
 }
 
+const verified = (score, status) => (Number.isFinite(score) ? String(score) : status === 'insufficient' ? 'insuff.' : '—');
 const reach = (v) => [v.contact.emails[0], v.contact.phones[0], ...Object.keys(v.contact.socials)].filter(Boolean).join(' ');
 
 export function renderVendors(list) {
-  const out = [c.d(`${pad('vendor', 32)}${pad('score', 7)}${pad('lab', 14)}${pad('listings', 10)}${pad('from', 12)}contact`)];
+  const out = [c.d(`${pad('vendor', 32)}${pad('verified', 10)}${pad('finnrick', 10)}${pad('lab', 14)}${pad('listings', 10)}${pad('from', 12)}contact`)];
   for (const v of list) {
     const lab = v.tests_pass + v.tests_fail ? `${v.tests_pass}/${v.tests_pass + v.tests_fail} pass` : '—';
-    out.push(`${v.sponsored ? '★ ' : ''}${pad(v.name, v.sponsored ? 30 : 32)}${pad(v.score ?? '—', 7)}${pad(lab, 14)}${pad(v.offers || '—', 10)}${pad(Number.isFinite(v.min_usd_per_mg) ? `$${v.min_usd_per_mg}/mg` : '—', 12)}${c.d(reach(v))}`);
+    out.push(`${v.sponsored ? '★ ' : ''}${pad(v.name, v.sponsored ? 30 : 32)}${pad(verified(v.verification_score, v.verification?.status), 10)}${pad(v.score ?? '—', 10)}${pad(lab, 14)}${pad(v.offers || '—', 10)}${pad(Number.isFinite(v.min_usd_per_mg) ? `$${v.min_usd_per_mg}/mg` : '—', 12)}${c.d(reach(v))}`);
   }
   if (!list.length) out.push(c.d('no vendor matches every filter'));
   return out.join('\n');
@@ -89,7 +92,11 @@ export function renderVendors(list) {
 function printVendor(v) {
   if (v.error) return console.log(v.error);
   console.log(`${c.b(v.name)} ${v.sponsored ? c.g('(sponsored)') : ''} ${c.d(v.ships_from.join(', ') || v.location || '')}`);
-  console.log(`score ${v.score ?? '—'} · lab ${v.tests_pass}/${v.tests_pass + v.tests_fail} passed · ${v.offers} listings · ${v.ordering ?? ''}\n`);
+  const s = v.verification;
+  console.log(`verification ${Number.isFinite(s.score) ? `${s.score}/100` : s.status === 'insufficient' ? 'insufficient data' : 'unscored'} · Finnrick ${v.score ?? '—'} · lab ${v.tests_pass}/${v.tests_pass + v.tests_fail} passed · ${v.offers} listings · ${v.ordering ?? ''}`);
+  if (s.note) console.log(c.d(`  ${s.note}`));
+  for (const k of s.components) console.log(`  ${pad(k.label, 26)} ${pad(k.status === 'ok' ? `${k.points}/${k.weight}` : `—/${k.weight}`, 9)} ${c.d(k.evidence)}`);
+  console.log(c.d(`  last verified ${s.verified_at?.slice(0, 10) ?? '—'} · changed ${s.changed_at?.slice(0, 10) ?? '—'} · ${s.rules}\n`));
   for (const e of v.contact.emails) console.log(`  email     ${e}`);
   for (const p of v.contact.phones) console.log(`  phone     ${p}`);
   for (const w of v.contact.websites) console.log(`  website   ${w}`);
@@ -130,6 +137,16 @@ async function main() {
       return out(await api(`/api/v1/peptides/${pos[0]}`), printPeptide);
     case 'peptides':
       return out(await api('/api/v1/peptides'), (d) => d.peptides.filter((p) => p.offers).map((p) => `${pad(p.name, 40)} ${pad(`${p.vendors} vendors`, 12)} ${pad(`${p.offers} listings`, 14)} ${Number.isFinite(p.min_usd_per_mg) ? `$${p.min_usd_per_mg}/mg` : ''}`).join('\n'));
+    case 'rules':
+      return out(await api('/api/v1/rules', { limit: 20 }), (d) =>
+        [
+          c.b(`verification score rules v${d.rules.version}`) + c.d(` · ${d.vendors.scored} scored, ${d.vendors.insufficient} insufficient data, ${d.vendors.unscored} unscored`),
+          ...d.rules.components.map((k) => `  ${pad(k.label, 26)} ${pad(k.weight, 4)} ${c.d(k.rule)}`),
+          c.d(`\nrecent changes`),
+          ...d.recent_changes.map((h) => `  ${h.at.slice(0, 10)} ${pad(h.name ?? h.vendor, 30)} ${pad(`${h.old_score ?? '—'} → ${h.new_score ?? h.new_status}`, 18)} ${c.d(h.why)}`),
+          c.c(`\n  ${d.page ?? ''}`),
+        ].join('\n'),
+      );
     case 'stats':
       return out(await api('/api/v1/stats'), (d) => Object.entries(d).map(([k, v]) => `${pad(k, 22)} ${v}`).join('\n'));
     case 'tui':
@@ -143,7 +160,7 @@ async function main() {
     case 'daemon': {
       // `peptides daemon status` asks the site; `peptides daemon run <task> [key]` runs one task here, now.
       if (pos[0] === 'status') return out(await api('/api/v1/daemon'), (d) => JSON.stringify(d, null, 2));
-      if (pos[0] !== 'run' || !pos[1]) throw new Error('usage: peptides daemon status | peptides daemon run <register|discover|finnrick-contacts|site-contacts> [vendor-slug]');
+      if (pos[0] !== 'run' || !pos[1]) throw new Error('usage: peptides daemon status | peptides daemon run <register|discover|finnrick-vendors|site-contacts|shop-prices|finnrick-tests|scores> [vendor-slug]');
       (await import('../src/sync.js')).loadSnapshotIfEmpty();
       const d = (await import('../src/daemon.js')).buildDaemon();
       const r = await d.runNow(pos[1], pos[2]);
@@ -155,8 +172,9 @@ async function main() {
 
   peptides search "retatrutide lab tested under $1/mg"
   peptides search --peptide bpc-157 --in-stock --ships-from US --sort price
-  peptides vendors --contact email --min-score 80
-  peptides vendor <slug>       contact card, lab tests, listings
+  peptides vendors --contact email --min-verification 70
+  peptides rules               how the verification score is computed
+  peptides vendor <slug>       verification score, contact card, lab tests, listings
   peptides peptide <slug>      lab results by vendor
   peptides peptides | stats
   peptides tui                 interactive

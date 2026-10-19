@@ -6,7 +6,7 @@ import { slugify } from './normalize.js';
  * where a phrase is unambiguous ("under $50", "in stock", "lab tested", "crypto")
  * and left as a word search otherwise.
  */
-const NUM = ['min_price', 'max_price', 'max_per_mg', 'min_per_mg', 'min_mg', 'max_mg', 'min_score', 'min_pass', 'page'];
+const NUM = ['min_price', 'max_price', 'max_per_mg', 'min_per_mg', 'min_mg', 'max_mg', 'min_score', 'min_verification', 'min_pass', 'page'];
 const BOOL = ['in_stock', 'tested', 'passed', 'coupon', 'priced', 'single', 'blend'];
 const STR = ['q', 'peptide', 'vendor', 'form', 'payment', 'ships_from', 'ordering', 'contact', 'sort'];
 export const PARAMS = [...STR, ...NUM, ...BOOL];

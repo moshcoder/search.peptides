@@ -11,6 +11,17 @@ export function Chips({ items }) {
 }
 
 export const scoreText = (v) => (Number.isFinite(v.score) ? `${v.score}/100` : 'unscored');
+export const verifyText = (score, status) => (Number.isFinite(score) ? `${score}/100` : status === 'insufficient' ? 'insufficient data' : 'unscored');
+
+/** The verification score, always a link to how it is worked out: /rules, or the vendor's own breakdown. */
+export function VerifyBadge({ score, status, href = '/rules#formula' }) {
+  const cls = Number.isFinite(score) ? (score >= 70 ? 'good' : score < 40 ? 'bad' : '') : 'muted';
+  return (
+    <a class={`vscore ${cls}`} href={href} title="Verification score: how it is worked out">
+      {verifyText(score, status)}
+    </a>
+  );
+}
 export const passText = (v) => (v.tests_pass + v.tests_fail ? `${v.tests_pass}/${v.tests_pass + v.tests_fail} passed` : 'no lab tests');
 
 /** One listing: a row on a wide screen, a card on a phone. Nothing scrolls sideways. */
@@ -38,7 +49,7 @@ export function OfferRow({ o, sponsored = false }) {
       </div>
       <dl class="sb-specs">
         {spec('Size', size(o), o.form && o.form !== 'vial' ? o.form : null)}
-        {spec('Vendor score', Number.isFinite(o.vendor_score) ? o.vendor_score : '—')}
+        {spec('Verified', <VerifyBadge score={o.vendor_verification_score} status={o.vendor_verification_status} href={`/v/${o.vendor}#score`} />)}
         {spec('Lab tests', o.vendor_tests || '—')}
         {spec('Price', usd(o.price_usd), o.currency && o.currency !== 'USD' ? `${o.price} ${o.currency}` : null)}
       </dl>
@@ -73,7 +84,7 @@ export function VendorRow({ v }) {
         </span>
       </div>
       <dl class="sb-specs">
-        {spec('Score', scoreText(v))}
+        {spec('Verified', <VerifyBadge score={v.verification_score} status={v.verification.status} href={`/v/${v.slug}#score`} />)}
         {spec('Lab', passText(v))}
         {spec('Listings', v.offers || '—')}
         {spec('Pay', v.payments.map((p) => PAYMENT_LABELS[p] ?? p).join(', ') || '—')}

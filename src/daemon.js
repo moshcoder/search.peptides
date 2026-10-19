@@ -2,7 +2,9 @@ import { createDaemon, sqliteStore } from '@profullstack/scraper-daemon';
 import { config } from './config.js';
 import { open } from './db.js';
 import { discoverFinnrick } from './discover.js';
-import { crawlable, FINNRICK, finnrickContacts, saveContacts, siteContacts, userAgent } from './enrich.js';
+import { ratingFromRecord, readTests, saveRating, saveTests } from './finnrick.js';
+import { crawlable, FINNRICK, finnrickRecord, finnrickToContacts, saveContacts, siteContacts, userAgent } from './enrich.js';
+import { recomputeScores } from './score.js';
 import { invalidate, listPeptides } from './service.js';
 import { peptideMatcher, readShop, recomputeVendorStats, saveShopOffers } from './shops.js';
 import { sync } from './sync.js';
@@ -13,23 +15,38 @@ import { sync } from './sync.js';
  *
  *   register           the price/lab register, hourly
  *   discover           Finnrick's vendor list: vendors the register lacks, every 6 h
- *   finnrick-contacts  each vendor's Finnrick record (vouched emails/websites), every 3 d
+ *   finnrick-vendors   each vendor's Finnrick record (vouched emails/websites, rating), every 3 d
  *   site-contacts      each vendor's own site (emails, phones, socials), weekly
+ *   shop-prices        each vendor's own shop catalogue, daily
+ *   finnrick-tests     every independent test record (lab, certificate, batch), daily
+ *   scores             the verification score (src/score.js), every 6 h as tests age
  *
- * The service cache is dropped after any task changes data, at most once a minute,
- * so pages see new rows without rebuilding the cache on every vendor.
+ * After any task changes data, at most once a minute, every vendor's verification score
+ * is recomputed (changes logged to score_log) and the service cache is dropped, so pages
+ * see new rows without rebuilding the cache on every vendor.
  */
 const intervals = {
   register: process.env.REGISTER_EVERY ?? '1h',
   discover: process.env.DISCOVER_EVERY ?? '6h',
   finnrick: process.env.FINNRICK_EVERY ?? '3d',
   site: process.env.SITE_EVERY ?? '7d',
+  tests: process.env.FINNRICK_TESTS_EVERY ?? '1d',
+  scores: process.env.SCORES_EVERY ?? '6h',
 };
 
 let dirty = false;
+const rescore = () => {
+  try {
+    return recomputeScores();
+  } catch (err) {
+    console.error(`[score] ${err.message}`);
+    return null;
+  }
+};
 setInterval(() => {
   if (dirty) {
     dirty = false;
+    rescore();
     invalidate();
   }
 }, 60_000).unref?.();
@@ -64,7 +81,7 @@ export function buildDaemon({ log } = {}) {
       recomputeVendorStats();
       changed();
       daemon.refreshItems('site-contacts');
-      daemon.refreshItems('finnrick-contacts');
+      daemon.refreshItems('finnrick-vendors');
       return counts;
     },
   });
@@ -79,14 +96,16 @@ export function buildDaemon({ log } = {}) {
         ctx.log(`${r.added} new vendors`);
         changed();
         daemon.refreshItems('site-contacts');
-        daemon.refreshItems('finnrick-contacts');
+        daemon.refreshItems('finnrick-vendors');
       }
       return r;
     },
   });
 
+  // Was 'finnrick-contacts' until the record's rating fed the verification score; the new name
+  // made every vendor due at once, so all ratings arrived within an hour of that deploy.
   daemon.queue({
-    name: 'finnrick-contacts',
+    name: 'finnrick-vendors',
     every: intervals.finnrick,
     concurrency: 1,
     retireAfter: 20,
@@ -94,9 +113,12 @@ export function buildDaemon({ log } = {}) {
     items: async () => vendorsFor('').map((v) => ({ key: v.slug })),
     run: async (item, ctx) => {
       try {
-        const found = await finnrickContacts(item.key, ctx.fetch);
-        if (saveContacts(item.key, 'finnrick', found)) changed();
-        return { contacts: found.length };
+        const doc = await finnrickRecord(item.key, ctx.fetch);
+        const found = finnrickToContacts(doc?.vendor);
+        const rating = ratingFromRecord(doc);
+        // Either a new rating or new contacts moves the score; both are re-read on the next flush.
+        if (saveRating(item.key, rating) | Boolean(saveContacts(item.key, 'finnrick', found))) changed();
+        return { contacts: found.length, rating: rating?.rating ?? null };
       } catch (err) {
         // Not every register vendor has a Finnrick record; that is an answer, not a failure.
         if (err?.status === 404) return { nextIn: '30d' };
@@ -122,6 +144,32 @@ export function buildDaemon({ log } = {}) {
       const found = await siteContacts(fresh, ctx.fetch);
       if (saveContacts(item.key, 'site', found)) changed();
       return { contacts: found.length };
+    },
+  });
+
+  // Every independent test record: the verification score's evidence. ~125 pages of 100, one host, politely.
+  daemon.job({
+    name: 'finnrick-tests',
+    every: intervals.tests,
+    staleAfter: '3d',
+    timeout: '45m',
+    run: async (ctx) => {
+      const r = saveTests(await readTests(ctx.fetch, { signal: ctx.signal }));
+      const s = rescore();
+      invalidate();
+      return { ...r, scores: s };
+    },
+  });
+
+  // Recency moves with the calendar, not only with new data.
+  daemon.job({
+    name: 'scores',
+    every: intervals.scores,
+    staleAfter: '1d',
+    run: async () => {
+      const s = recomputeScores();
+      if (s.changed) invalidate();
+      return s;
     },
   });
 

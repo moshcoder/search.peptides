@@ -211,9 +211,10 @@ export function crawlable(v) {
 
 /** Finnrick's public record for a vendor: the contacts it lists, kept when vouched for or confident. */
 export async function finnrickContacts(slug, fetcher) {
-  const doc = await fetcher.json(`${FINNRICK}/api/v1/vendors/${encodeURIComponent(slug)}`);
-  return finnrickToContacts(doc?.vendor);
+  return finnrickToContacts((await finnrickRecord(slug, fetcher))?.vendor);
 }
+
+export const finnrickRecord = (slug, fetcher) => fetcher.json(`${FINNRICK}/api/v1/vendors/${encodeURIComponent(slug)}`);
 
 export function finnrickToContacts(vendor) {
   const found = [];
@@ -238,4 +239,4 @@ export function finnrickToContacts(vendor) {
   return found;
 }
 
-export const userAgent = `search.peptides/0.2 (+${config.siteUrl}/docs)`;
+export const userAgent = `search.peptides/0.3 (+${config.siteUrl}/docs)`;

@@ -2,11 +2,12 @@ import { config } from '../../config.js';
 import { countryName, PAYMENT_LABELS } from '../../core/normalize.js';
 import { toParams } from '../../core/parse.js';
 import { syncedDay } from '../../service.js';
+import { RULES_HISTORY } from '../../score.js';
 import { Layout, REPO } from './Layout.jsx';
-import { ActiveChips, Chips, FacetRail, ORDERING, OfferRow, Pager, passText, perMg, ResultsHead, scoreText, size, usd, VendorRow } from './parts.jsx';
+import { ActiveChips, Chips, FacetRail, ORDERING, OfferRow, Pager, passText, perMg, ResultsHead, scoreText, size, usd, VendorRow, VerifyBadge, verifyText } from './parts.jsx';
 
-const OFFER_SORTS = [['', 'Cheapest per mg'], ['price', 'Lowest price'], ['score', 'Best vendor score'], ['size', 'Largest size'], ['name', 'Peptide A–Z']];
-const VENDOR_SORTS = [['', 'Best score'], ['pass_rate', 'Lab pass rate'], ['tests', 'Most lab tests'], ['per_mg', 'Cheapest per mg'], ['listings', 'Most listings'], ['name', 'Name']];
+const OFFER_SORTS = [['', 'Cheapest per mg'], ['price', 'Lowest price'], ['verification', 'Best verification score'], ['score', 'Best Finnrick rating'], ['size', 'Largest size'], ['name', 'Peptide A–Z']];
+const VENDOR_SORTS = [['', 'Best verification score'], ['score', 'Best Finnrick rating'], ['pass_rate', 'Lab pass rate'], ['tests', 'Most lab tests'], ['per_mg', 'Cheapest per mg'], ['listings', 'Most listings'], ['name', 'Name']];
 const EXAMPLES = ['retatrutide lab tested under $1/mg', 'bpc-157 in stock', 'tirzepatide ships from us', 'ghk-cu crypto', 'semaglutide 10mg', 'nad+ passed', 'mots-c zelle', 'tb-500 coupon'];
 
 function ApiReadout({ result, tool }) {
@@ -176,7 +177,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
             <p class="cta">
               <a class="btn" href="/docs">Use the free API, CLI or MCP</a>
               <a class="btn ghost" href="/sponsor">Sponsor your shop</a>
-              <a class="btn ghost" href="/methodology">How we score and price</a>
+              <a class="btn ghost" href="/rules">How vendors are scored</a>
             </p>
           ) : null}
           {searched ? <ApiReadout result={result} tool="search_listings" /> : null}
@@ -188,7 +189,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
       <div class="results-layout">
         <FacetRail facets={result.facets} base={base} total={result.total} peptidePage={!!peptide} />
         <section class="results">
-          <ResultsHead title={`${result.total.toLocaleString('en-US')} ${result.total === 1 ? 'listing' : 'listings'}`} base={base} params={params} sorts={OFFER_SORTS} sort={['price', 'score', 'size', 'name'].includes(f.sort) ? f.sort : ''} h1={false} />
+          <ResultsHead title={`${result.total.toLocaleString('en-US')} ${result.total === 1 ? 'listing' : 'listings'}`} base={base} params={params} sorts={OFFER_SORTS} sort={['price', 'verification', 'score', 'size', 'name'].includes(f.sort) ? f.sort : ''} h1={false} />
           <ActiveChips chips={peptide ? result.chips.filter((c) => c.label !== peptide.name) : result.chips} base={base} />
           {result.sponsored.length && result.page === 1 ? (
             <div class="sb-list">
@@ -243,9 +244,9 @@ export function VendorsPage({ result, text }) {
   const f = result.query.filters;
   const params = toParams(f);
   return (
-    <Layout title="Peptide vendors: lab results, score, contact" path="/vendors" noindex={Object.keys(f).some((k) => k !== 'page')} description={`${result.total} research-peptide vendors with independent lab pass rates, scores, payment methods, where they ship from and how to reach them.`}>
+    <Layout title="Peptide vendors: lab results, score, contact" path="/vendors" noindex={Object.keys(f).some((k) => k !== 'page')} description={`${result.total} research-peptide vendors with a transparent verification score, independent lab pass rates, payment methods, where they ship from and how to reach them.`}>
       <h1>Peptide vendors</h1>
-      <p class="lede">Every vendor with independent lab results or published prices, with how to reach them: email, phone, WhatsApp, Telegram and socials read from the vendor’s own site.</p>
+      <p class="lede">Every vendor with independent lab results or published prices, ranked by a verification score built only from evidence you can check (<a href="/rules">the rules</a>), with how to reach them: email, phone, WhatsApp, Telegram and socials read from the vendor’s own site.</p>
       <form class="bigsearch" action="/vendors" method="get" role="search">
         <input name="q" value={f.q ?? text ?? ''} placeholder="vendor name" autocomplete="off" />
         <button class="btn primary" type="submit">Search</button>
@@ -253,7 +254,7 @@ export function VendorsPage({ result, text }) {
       <div class="results-layout">
         <FacetRail facets={result.facets} base="/vendors" total={result.total} />
         <section class="results">
-          <ResultsHead title={`${result.total} ${result.total === 1 ? 'vendor' : 'vendors'}`} base="/vendors" params={params} sorts={VENDOR_SORTS} sort={['pass_rate', 'tests', 'per_mg', 'listings', 'name'].includes(f.sort) ? f.sort : ''} h1={false} />
+          <ResultsHead title={`${result.total} ${result.total === 1 ? 'vendor' : 'vendors'}`} base="/vendors" params={params} sorts={VENDOR_SORTS} sort={['score', 'pass_rate', 'tests', 'per_mg', 'listings', 'name'].includes(f.sort) ? f.sort : ''} h1={false} />
           <ActiveChips chips={result.chips} base="/vendors" />
           {result.page === 1 && result.sponsored.length ? (
             <div class="sb-list">
@@ -305,7 +306,7 @@ export function VendorPage({ v }) {
   const listings = [...v.listings].sort((a, b) => (a.peptide ?? '').localeCompare(b.peptide ?? '') || (a.total_mg ?? 0) - (b.total_mg ?? 0) || (a.price_usd ?? 0) - (b.price_usd ?? 0));
   const notes = [v.terms_source, v.ordering_evidence, v.notes].filter(Boolean);
   return (
-    <Layout title={`${v.name}: lab results, prices, contact`} path={`/v/${v.slug}`} jsonld={jsonld} description={`${v.name}: ${passText(v)}, score ${scoreText(v)}, ${v.offers} listings. Email, phone and socials, payment methods and shipping.`}>
+    <Layout title={`${v.name}: lab results, prices, contact`} path={`/v/${v.slug}`} jsonld={jsonld} description={`${v.name}: verification score ${verifyText(v.verification_score, v.verification.status)}, ${passText(v)}, ${v.offers} listings. Email, phone and socials, payment methods and shipping.`}>
       <p class="crumbs">
         <a href="/vendors">Vendors</a> / {v.name}
       </p>
@@ -315,7 +316,8 @@ export function VendorPage({ v }) {
             {v.name} {v.sponsored ? <span class="tag">Sponsored</span> : null}
           </h1>
           <p class="vbadges">
-            <span class="chip strong">{scoreText(v)}</span>
+            <a class="chip strong" href="#score">verification {verifyText(v.verification_score, v.verification.status)}</a>
+            <span class="chip" title="Finnrick's rating as published">Finnrick {scoreText(v)}</span>
             <span class={`chip ${v.tests_fail ? 'bad' : v.tests ? 'good' : ''}`}>{v.tests ? `${v.tests_pass}/${v.tests} lab tests passed` : 'no lab tests'}</span>
             {ORDERING[v.ordering] ? <span class="chip">{ORDERING[v.ordering]}</span> : null}
             {v.ships_from.length ? <span class="chip">from {v.ships_from.map(countryName).join(', ')}</span> : null}
@@ -360,7 +362,9 @@ export function VendorPage({ v }) {
           ))}
         </p>
       ) : null}
-      {tests.length ? (
+      <ScoreSection v={v} />
+      {v.independent_tests.length ? <TestsSection v={v} /> : null}
+      {tests.length && !v.independent_tests.length ? (
         <section class="vsec">
           <h2>Independent lab tests</h2>
           <table class="tbl tight fit">
@@ -424,6 +428,108 @@ export function VendorPage({ v }) {
         Checked {v.checked_at ? v.checked_at.slice(0, 10) : 'unknown'} · <a href={`/api/v1/vendors/${v.slug}`}>JSON</a> · Is this your shop? <a href={`/sponsor?vendor=${v.slug}`}>Sponsor it</a> to be pinned above matching listings.
       </p>
     </Layout>
+  );
+}
+
+const day = (iso) => (iso ? String(iso).slice(0, 10) : '—');
+const pts = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/** The vendor's verification score, every component with its weight, points and evidence. */
+function ScoreSection({ v }) {
+  const s = v.verification;
+  return (
+    <section class="vsec" id="score">
+      <h2>Verification score</h2>
+      <div class="scorebox">
+        <p>
+          <span class="big">{verifyText(s.score, s.status)}</span>{' '}
+          <span class="muted small">
+            last verified {day(s.verified_at)} · score changed {day(s.changed_at)} · rules v{s.rules_version} · <a href="/rules">how it is worked out</a>
+          </span>
+        </p>
+        {s.note ? <p class="muted">{s.note} The components below show what is on record; none of it is filled in by guessing.</p> : null}
+        {s.components.length ? (
+          <div class="scroll">
+            <table class="tbl tight">
+              <thead>
+                <tr><th>Component</th><th class="num">Points</th><th>Evidence</th></tr>
+              </thead>
+              <tbody>
+                {s.components.map((c) => (
+                  <tr>
+                    <td><a href={`/rules#${c.key}`}>{c.label}</a></td>
+                    <td class="mono num">{c.status === 'ok' ? `${pts(c.points)} / ${c.weight}` : `— / ${c.weight}`}</td>
+                    <td class="ev">{c.evidence}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <p class="muted small">
+          Evidence: <a href={s.evidence} rel="nofollow noopener" target="_blank">{v.name} on Finnrick ↗</a> and the vendor’s own pages. Research use only; this scores the paper trail, not any product’s fitness for use.
+        </p>
+      </div>
+      {v.score_history.length ? (
+        <details class="vnotes">
+          <summary>Score history ({v.score_history.length})</summary>
+          <table class="tbl tight fit">
+            <thead>
+              <tr><th>When</th><th>Score</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              {v.score_history.map((h) => (
+                <tr>
+                  <td class="mono">{day(h.at)}</td>
+                  <td class="mono">{h.old_status ? `${verifyText(h.old_score, h.old_status)} → ` : ''}{verifyText(h.new_score, h.new_status)}</td>
+                  <td class="ev">{h.why}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
+/** Every independent test, each a link to its public record with the certificate. */
+function TestsSection({ v }) {
+  const shown = v.independent_tests.slice(0, 100);
+  const yes = (b) => (b ? <span class="ok">✓</span> : <span class="muted">–</span>);
+  return (
+    <section class="vsec">
+      <h2>
+        Independent lab tests <span class="muted small">{v.independent_tests.length}</span>
+      </h2>
+      <div class="scroll">
+        <table class="tbl tight">
+          <thead>
+            <tr><th>Tested</th><th>Peptide</th><th>Result</th><th>Purity</th><th>Lab</th><th>Batch</th><th title="Certificate of analysis on file">COA</th><th>Sample</th><th>Record</th></tr>
+          </thead>
+          <tbody>
+            {shown.map((t) => (
+              <tr>
+                <td class="mono">{t.tested_on ?? '—'}</td>
+                <td>{t.peptide_slug ? <a href={`/p/${t.peptide_slug}`}>{t.peptide}</a> : t.peptide}</td>
+                <td>{t.passed === true ? <span class="ok">✓ pass</span> : t.passed === false ? <span class="no" title={t.reasons.join(', ')}>✗ fail</span> : <span class="muted">not classified</span>}</td>
+                <td class="mono">{t.purity ?? '—'}</td>
+                <td>{t.lab_name ?? '—'}</td>
+                <td class="mono">{t.batch ?? <span class="muted">none</span>}</td>
+                <td>{yes(t.coa)}</td>
+                <td>{t.sent_by ?? '—'}</td>
+                <td><a href={t.record} rel="nofollow noopener" target="_blank">record ↗</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {v.independent_tests.length > shown.length ? (
+        <p class="muted small">
+          Newest {shown.length} shown; all {v.independent_tests.length} in the <a href={`/api/v1/vendors/${v.slug}`}>JSON</a>.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -518,18 +624,20 @@ export function Docs({ stats }) {
       <h2>REST</h2>
       <pre>{`GET ${base}/api/v1/search?text=retatrutide+lab+tested+under+$1/mg
 GET ${base}/api/v1/search?peptide=bpc-157&in_stock=1&max_per_mg=2&sort=per_mg
-GET ${base}/api/v1/vendors?min_score=80&contact=email&ships_from=US
+GET ${base}/api/v1/vendors?min_verification=70&contact=email&ships_from=US
+GET ${base}/api/v1/rules
 GET ${base}/api/v1/vendors/<slug>          lab tests, listings, contact card
 GET ${base}/api/v1/peptides                 every peptide with vendors and lowest $/mg
 GET ${base}/api/v1/peptides/<slug>          lab results by vendor
 GET ${base}/api/v1/export                   the whole register (nichedb reads this)
 GET ${base}/api/v1/stats`}</pre>
       <p>
-        Filters: <code>text q peptide vendor form payment ships_from ordering contact min_price max_price min_per_mg max_per_mg min_mg max_mg min_score min_pass in_stock tested passed coupon single blend priced sort page</code>. Every search response carries <code>facets</code>: each option with the count it leads to and the query that applies it.
+        Filters: <code>text q peptide vendor form payment ships_from ordering contact min_price max_price min_per_mg max_per_mg min_mg max_mg min_verification min_score min_pass in_stock tested passed coupon single blend priced sort page</code>. Every search response carries <code>facets</code>: each option with the count it leads to and the query that applies it.
       </p>
       <h2>CLI and TUI</h2>
       <pre>{`bunx searchpeptides search "bpc-157 in stock under $1/mg"
-bunx searchpeptides vendors --contact email --min-score 80
+bunx searchpeptides vendors --contact email --min-verification 70
+bunx searchpeptides rules
 bunx searchpeptides vendor chimera-peptides
 bunx searchpeptides peptide retatrutide
 bunx searchpeptides tui`}</pre>
@@ -617,9 +725,13 @@ export function MethodologyPage({ stats }) {
         <p>
           Each listing’s price is the vendor’s own, converted to US dollars on the day it was read. Price per mg is that price divided by the total milligrams in the listing: the size of one vial times the number of vials in the pack. Listings sold in IU or another unit are ranked by that unit and never compared with mg. Out-of-stock listings stay in the list, marked.
         </p>
-        <h2>Vendor score</h2>
+        <h2>Verification score</h2>
         <p>
-          The 0 to 100 score is <a href="https://www.finnrick.com">Finnrick</a>’s, shown as published. Finnrick is an independent service that lab-tests peptides sold by vendors and rates the vendors on the results. We do not compute, adjust or sell scores. A vendor with no Finnrick record shows as unscored.
+          Each vendor’s 0 to 100 verification score is computed here from evidence you can check: independent lab results, whether each certificate is lot-specific, names its lab and has a public record, how many tests and how recent, Finnrick’s rating, and the vendor’s published terms. The formula, the weights, what counts as a verifiable certificate and every score change are on <a href="/rules">the rules page</a>. Scores are never sold.
+        </p>
+        <h2>Finnrick rating</h2>
+        <p>
+          The Finnrick rating is <a href="https://www.finnrick.com">Finnrick</a>’s own, shown as published. Finnrick is an independent service that lab-tests peptides sold by vendors and rates the vendors on the results. It is one component of the verification score.
         </p>
         <h2>Lab tests and “passed”</h2>
         <p>
@@ -639,6 +751,132 @@ export function MethodologyPage({ stats }) {
         <h2>Corrections</h2>
         <p>
           Wrong price, dead link, or a vendor’s details out of date? <a href={`${REPO}/issues`}>Open an issue</a>.
+        </p>
+      </div>
+    </Layout>
+  );
+}
+
+/** /rules: the verification criteria, the formula, the sources and how fresh they are, and what changed. */
+export function RulesPage({ report, stats, changelog }) {
+  const { rules } = report;
+  const years = rules.window_days / 365;
+  return (
+    <Layout title="Rules: how vendors are verified and scored" path="/rules" description={`The verification score on ${config.siteName}: what counts as a verifiable certificate of analysis, the formula and its weights, where the evidence comes from, how often it is re-read, and every score change.`}>
+      <div class="prose">
+        <h1>Rules: how vendors are verified and scored</h1>
+        <p class="lede">
+          A vendor comparison is only as good as its verification criteria and its update history, so both are here. The verification score (0 to 100) is built only from evidence you can check yourself, every vendor page shows each component with its weight and evidence, and a vendor without enough evidence is shown as <b>insufficient data</b> or <b>unscored</b>, never given a guessed number. For research use only; the score rates the paper trail, not any product’s fitness for use, and it is not medical advice.
+        </p>
+        <p class="muted small">
+          Rules version {rules.version} · {report.vendors.scored} vendors scored, {report.vendors.insufficient} with insufficient data, {report.vendors.unscored} unscored{Number.isFinite(report.median_score) ? ` · median score ${report.median_score}` : ''} · tests last read {report.tests_read_at ? `${String(report.tests_read_at).slice(0, 16).replace('T', ' ')} UTC` : 'not yet'}
+        </p>
+
+        <h2 id="criteria">What counts as verified</h2>
+        <p>A certificate of analysis (COA) counts toward the score only when all of this holds:</p>
+        <ul>
+          <li><b>Independent sample.</b> The sample was tested for Finnrick, an independent testing service, not supplied as a document by the vendor. A certificate a vendor posts on its own site cannot be traced to a sample anyone else bought, so it earns nothing here.</li>
+          <li><b>Identifiable lab.</b> The certificate names the laboratory that ran the test (for example Krause Analytical, BTLabs).</li>
+          <li><b>Lot-specific.</b> The record carries a lot or batch identifier as printed on the vial. A result without one says something about the vendor, less about any batch you might receive.</li>
+          <li><b>Verifiable.</b> The certificate is on file with a public record page you can open: every test on a vendor page links to it.</li>
+          <li><b>Recent.</b> Only tests from the last {years} years count toward results, certificates, depth and sampling; recency is scored on its own.</li>
+        </ul>
+        <p>Not inputs, ever: {rules.not_inputs.map((x) => x.toLowerCase()).join('; ')}.</p>
+
+        <h2 id="formula">The formula</h2>
+        <p>Score = the sum of seven components, rounded. Missing evidence earns no points for that component; nothing is estimated.</p>
+        <div class="scroll">
+          <table class="tbl tight">
+            <thead>
+              <tr><th>Component</th><th class="num">Weight</th><th>Rule</th></tr>
+            </thead>
+            <tbody>
+              {rules.components.map((c) => (
+                <tr id={c.key}>
+                  <td>{c.label}</td>
+                  <td class="mono num">{c.weight}</td>
+                  <td class="ev">{c.rule}</td>
+                </tr>
+              ))}
+              <tr>
+                <td><b>Total</b></td>
+                <td class="mono num"><b>{rules.components.reduce((n, c) => n + c.weight, 0)}</b></td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 id="statuses">Scored, insufficient data, unscored</h3>
+        <ul>
+          {Object.entries(rules.statuses).map(([k, t]) => (
+            <li>
+              <b>{k === 'insufficient' ? 'Insufficient data' : k[0].toUpperCase() + k.slice(1)}.</b> {t.replace(/^[^:]*: /, '')}
+            </li>
+          ))}
+        </ul>
+        <p>“Passed” is Finnrick’s classification under its default “Purity focus” criteria. A pass is about that one sample; it does not mean every batch or listing was tested.</p>
+
+        <h2 id="sources">Sources and how often they are read</h2>
+        <div class="scroll">
+          <table class="tbl tight">
+            <thead>
+              <tr><th>Evidence</th><th>Source</th><th>Re-read</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Every independent test: result, purity, lab, batch, certificate, who sent the sample</td><td><a href="https://www.finnrick.com">Finnrick</a> public API, /api/v1/tests</td><td>daily</td></tr>
+              <tr><td>Finnrick rating per vendor</td><td>Finnrick vendor record, /api/v1/vendors/&lt;vendor&gt;</td><td>every 3 days per vendor</td></tr>
+              <tr><td>New vendors</td><td>Finnrick vendor list</td><td>every 6 hours</td></tr>
+              <tr><td>Checkout, payment methods, ships-from</td><td>the vendor’s own shop and terms pages, and the compiled register</td><td>daily (shop), hourly (register)</td></tr>
+              <tr><td>Contact email and website</td><td>the vendor’s own site; Finnrick’s vouched contacts</td><td>weekly; every 3 days</td></tr>
+              <tr><td>The score itself</td><td>recomputed from all of the above</td><td>after every update, and every 6 hours as tests age</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted small">Not affiliated with Finnrick or any vendor. Finnrick’s data is read from its public read API, which its robots.txt opens to crawlers.</p>
+
+        <h2 id="history">Update history</h2>
+        <p>
+          Each vendor page shows when its evidence was <b>last verified</b> (last read from the source), when its <b>score changed</b>, and its full score history with the reason for each change. The {report.recent_changes.length} most recent changes across all vendors:
+        </p>
+        {report.recent_changes.length ? (
+          <div class="scroll">
+            <table class="tbl tight">
+              <thead>
+                <tr><th>When (UTC)</th><th>Vendor</th><th>Score</th><th>Why</th></tr>
+              </thead>
+              <tbody>
+                {report.recent_changes.map((h) => (
+                  <tr>
+                    <td class="mono">{String(h.at).slice(0, 16).replace('T', ' ')}</td>
+                    <td><a href={`/v/${h.vendor}#score`}>{h.name ?? h.vendor}</a></td>
+                    <td class="mono">{h.old_status ? `${verifyText(h.old_score, h.old_status)} → ` : ''}{verifyText(h.new_score, h.new_status)}</td>
+                    <td class="ev">{h.why}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p class="muted">No score changes yet.</p>
+        )}
+        <h3 id="rules-history">Changes to these rules</h3>
+        <ul>
+          {RULES_HISTORY.map((r) => (
+            <li>
+              <time datetime={r.date}>{r.date}</time>, v{r.version}: {r.text}
+            </li>
+          ))}
+        </ul>
+        <h3>Site changelog</h3>
+        <ul>
+          {changelog.slice(0, 5).map((e) => (
+            <li>
+              <time datetime={e.date}>{e.date}</time>: {e.title}
+            </li>
+          ))}
+        </ul>
+        <p>
+          <a href="/changelog">Full changelog</a> · the code behind every number is public: <a href={`${REPO}/blob/main/src/score.js`}>src/score.js</a> · <a href="/api/v1/rules">these rules as JSON</a> · wrong evidence? <a href={`${REPO}/issues`}>Report a correction</a>.
         </p>
       </div>
     </Layout>
@@ -684,7 +922,7 @@ export function TermsPage() {
         <p>Nothing here is medical advice or an endorsement of any vendor or product. Listings are for research comparison only. Check the law where you are before buying anything.</p>
         <h2>The data</h2>
         <p>
-          Prices, stock, contact details and certificates are each vendor’s own; scores and lab results are Finnrick’s. They are shown as found, may be out of date or wrong, and come with no warranty. Check with the vendor before you buy. See <a href="/methodology">how we score and price</a>.
+          Prices, stock, contact details and certificates are each vendor’s own; lab results and ratings are Finnrick’s; the verification score is computed here under <a href="/rules">published rules</a>. They are shown as found, may be out of date or wrong, and come with no warranty. Check with the vendor before you buy. See <a href="/methodology">how we score and price</a>.
         </p>
         <h2>Vendors and links</h2>
         <p>Links to vendors carry no affiliate or referral code. We are not party to anything you buy from a vendor.</p>

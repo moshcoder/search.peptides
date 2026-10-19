@@ -59,6 +59,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
     ['/', 'Listings'],
     ['/vendors', 'Vendors'],
     ['/peptides', 'Peptides'],
+    ['/rules', 'Rules'],
     ['/sponsor', 'Sponsor'],
     ['/docs', 'API · CLI · MCP'],
   ];
@@ -129,7 +130,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             {DISCLOSURE} {PRICE_NOTE}
           </p>
           <p>
-            © {config.siteName} · <a href="/about">About</a> · <a href="/about#contact">Contact</a> · <a href="/methodology">How we score and price</a> · <a href="/sponsor">Sponsor pricing</a> · <a href="/changelog">Changelog</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
+            © {config.siteName} · <a href="/about">About</a> · <a href="/about#contact">Contact</a> · <a href="/rules">Scoring rules</a> · <a href="/methodology">How we price</a> · <a href="/sponsor">Sponsor pricing</a> · <a href="/changelog">Changelog</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
           </p>
         </footer>
         <div class="consent" id="consent" role="region" aria-label="Privacy choice" hidden>
