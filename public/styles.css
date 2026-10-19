@@ -298,3 +298,4 @@ main:focus { outline: none; }
 .scorebox { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--panel); }
 .scorebox .big { font: 700 2rem var(--mono); }
 .tbl td.ev { white-space: normal; color: var(--muted); font-size: 0.82rem; }
+.sb-specs dt a { color: inherit; text-decoration: underline dotted; }
