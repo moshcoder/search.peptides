@@ -300,3 +300,16 @@ describe('prices from vendor shops', () => {
     expect(open().query("SELECT count(*) n FROM offers WHERE vendor = ? AND origin = 'shop'").get(slug).n).toBe(1);
   });
 });
+
+describe('shop sizes: totals, thousands, packs', () => {
+  test('a pack total is not more peptide; thousands separators are thousands; a blend still adds up', async () => {
+    const { readAmount } = await import('../src/shops.js');
+    expect(readAmount('Glutathione 1200mg x 10vials, 12000mg')).toEqual({ amount: 1200, unit: 'mg', pack: 10, parts: 1 });
+    expect(readAmount('NAD+ 1,000mg')).toMatchObject({ amount: 1000, pack: 1 });
+    expect(readAmount('Semax 2,5mg')).toMatchObject({ amount: 2.5 });
+    expect(readAmount('Glutathione ™ 1500mg*10vials')).toMatchObject({ amount: 1500, pack: 10 });
+    expect(readAmount('Dosage: 5 MG / 5 MG')).toMatchObject({ amount: 10, parts: 2 });
+    expect(readAmount('BPC-157 5mg TB-500 5mg', { blend: true })).toMatchObject({ amount: 10, parts: 2 });
+    expect(readAmount('BPC-157 5mg TB-500 5mg')).toMatchObject({ amount: 5, parts: 1 });
+  });
+});
