@@ -7,8 +7,8 @@
 set -euo pipefail
 NAME=search-peptides-redis
 PORT=6392
-if docker inspect "$NAME" >/dev/null 2>&1; then
-  [ "$(docker inspect -f '{{.State.Running}}' "$NAME")" = true ] || docker start "$NAME" >/dev/null
+if docker inspect --type container "$NAME" >/dev/null 2>&1; then
+  [ "$(docker inspect --type container -f '{{.State.Running}}' "$NAME")" = true ] || docker start "$NAME" >/dev/null
 else
   docker run -d --name "$NAME" --restart unless-stopped \
     --memory 384m --memory-swap 384m \
