@@ -1,7 +1,7 @@
 import { raw } from 'hono/html';
 import { readFileSync } from 'node:fs';
 import { config } from '../../config.js';
-import { DISCLOSURE, PRICE_NOTE } from '../../service.js';
+import { DISCLOSURE, PRICE_NOTE, stats, syncedDay } from '../../service.js';
 import { pitFooter } from '../../pit-footer.ts';
 
 // The stylesheet and script are cached for an hour; a content hash in their URLs means a deploy never pairs new markup with old assets.
@@ -9,7 +9,6 @@ const assetVersion = (file) => Bun.hash(readFileSync(new URL(`../../../public/${
 const CSS_VERSION = assetVersion('styles.css');
 const JS_VERSION = assetVersion('app.js');
 
-/** The one HTML shell: dark ground, phosphor accent, sticky search bar, the Moshpit ring bar on top. */
 /** Who runs the site and how to search it, on every page; a page's own nodes join the same graph. */
 const SITE_GRAPH = () => [
   {
@@ -33,10 +32,13 @@ const SITE_GRAPH = () => [
 ];
 export const REPO = 'https://github.com/moshcoder/search.peptides';
 
+/** The one HTML shell: dark ground, phosphor accent, sticky search bar, the Moshpit ring bar on top. */
 export function Layout({ title, description, path = '/', jsonld, children, q = '', noindex = false, adClaim = '', api = `${config.siteUrl}/api/v1/search` }) {
-  const graph = { '@context': 'https://schema.org', '@graph': [...SITE_GRAPH(), ...[jsonld ?? []].flat().map(({ '@context': _, ...node }) => node)] };
   const full = title ? `${title} · ${config.siteName}` : `${config.siteName}: every research peptide vendor, compared`;
   const desc = description ?? 'Every research-peptide vendor and listing, compared by price per mg, independent lab results, payment and where it ships from, with each vendor’s contact details. Same search on the page, the API, the CLI and MCP.';
+  const modified = syncedDay(stats());
+  const webPage = { '@type': 'WebPage', '@id': `${config.siteUrl}${path}#page`, url: `${config.siteUrl}${path}`, name: full, description: desc, isPartOf: { '@id': `${config.siteUrl}/#site` }, ...(modified ? { dateModified: modified } : {}) };
+  const graph = { '@context': 'https://schema.org', '@graph': [...SITE_GRAPH(), webPage, ...[jsonld ?? []].flat().map(({ '@context': _, ...node }) => node)] };
   const nav = [
     ['/', 'Listings'],
     ['/vendors', 'Vendors'],
@@ -73,13 +75,16 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta property="og:image:height" content="630" />
         <meta property="og:image:alt" content={full} />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={full} />
+        <meta name="twitter:description" content={desc} />
+        {modified ? <meta property="og:updated_time" content={modified} /> : null}
         <meta name="twitter:image" content={`${config.siteUrl}/og.png`} />
         <script type="application/ld+json">{raw(JSON.stringify(graph).replace(/</g, '\\u003c'))}</script>
         {/* public/app.js loads crawlproof's counter and ads only after the visitor says yes. */}
         <script src={`/app.js?v=${JS_VERSION}`} defer data-stats={config.crawlproofSite || undefined} data-ads={siteAd || adClaim ? '1' : undefined}></script>
       </head>
       <body>
-        <a class="skip" href="#main">Skip to content</a>
+        <a class="skip" href="#main">Skip to {title ?? 'the search'}</a>
         {raw('<!--ring-bar-->')}
         <header class="top">
           <div class="wrap top-in">

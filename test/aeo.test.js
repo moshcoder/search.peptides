@@ -18,7 +18,7 @@ describe('answer-engine surfaces', () => {
   test('every page carries the site graph; a peptide page adds breadcrumbs, listings and answers', async () => {
     const { body } = await get('/p/glutathione');
     const types = graph(body).map((n) => n['@type']);
-    expect(types).toEqual(['Organization', 'WebSite', 'BreadcrumbList', 'ItemList', 'FAQPage']);
+    expect(types).toEqual(['Organization', 'WebSite', 'WebPage', 'BreadcrumbList', 'ItemList', 'FAQPage']);
     expect(body).toContain('quick answers');
     expect(body).toContain('summary_large_image');
     expect(body).toContain('/api/v1/peptides/glutathione');
@@ -27,7 +27,7 @@ describe('answer-engine surfaces', () => {
 
   test('a filtered peptide page keeps only the breadcrumbs', async () => {
     const { body } = await get('/p/glutathione?in_stock=1');
-    expect(graph(body).map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'BreadcrumbList']);
+    expect(graph(body).map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'WebPage', 'BreadcrumbList']);
   });
 
   test('robots names the AI crawlers and repeats the disallows for them', async () => {

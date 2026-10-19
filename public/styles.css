@@ -285,3 +285,4 @@ main:focus { outline: none; }
 .consent[hidden] { display: none; }
 .consent p { flex: 1 1 320px; margin: 0; font-size: 0.9rem; }
 .cp-ad iframe { display: block; border: 0; max-width: 100%; }
+.cta { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
