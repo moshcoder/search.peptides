@@ -331,7 +331,7 @@ export function searchVendors(input, opts = {}) {
   const sort = VENDOR_SORTS[f.sort] ? f.sort : 'score';
   const rows = c.vendors.filter((v) => vendorMatches(v, f)).sort(VENDOR_SORTS[sort]);
   const pinned = rows.filter((v) => v.sponsored).slice(0, 2);
-  const limit = Math.min(opts.limit ?? 100, 500);
+  const limit = opts.all ? Math.max(rows.length, 1) : Math.min(opts.limit ?? 100, 500);
   const page = Math.max(1, Math.floor(f.page ?? 1));
   const out = { query: { text, filters: f, understood }, total: rows.length, page, pages: Math.max(1, Math.ceil(rows.length / limit)), sponsored: pinned, vendors: rows.slice((page - 1) * limit, page * limit) };
   if (opts.facets) {

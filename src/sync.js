@@ -49,6 +49,12 @@ function blendOf(raw) {
 
 /** The source document → rows for every table. Pure, so tests feed it fixtures. */
 export function transform(doc) {
+  // Since 2026-10-19 12:56 UTC the source serves synthetic "cache test" records instead of its
+  // register. Say so plainly rather than tripping the size guard; the register we hold stays.
+  if (!Array.isArray(doc?.vendors)) {
+    const said = doc?.notice ? `: "${String(doc.notice).slice(0, 160)}"` : '';
+    throw new Error(`the source served no register${said}`);
+  }
   const aff = doc.affiliates ?? {};
   const products = unpackProducts(doc.products);
   const origin = doc.products?.origin ?? {};

@@ -115,7 +115,7 @@ app.get('/api/v1/peptides/:slug', (c) => {
 app.get('/api/v1/stats', (c) => json(c, stats()));
 // The whole register in one document: nichedb.dev's `peptides` collection reads this daily.
 app.get('/api/v1/export', (c) => {
-  const vendors = searchVendors({ filters: {}, understood: [], text: '' }, { limit: 500 }).vendors;
+  const vendors = searchVendors({ filters: {}, understood: [], text: '' }, { all: true }).vendors;
   const listings = searchOffers({ filters: {}, understood: [], text: '' }, { all: true }).offers;
   return json(c, { site: config.siteUrl, generated_at: new Date().toISOString(), disclosure: DISCLOSURE, note: PRICE_NOTE, stats: stats(), peptides: listPeptides(), vendors, listings });
 });
