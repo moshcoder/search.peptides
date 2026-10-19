@@ -93,7 +93,8 @@ export function computeScore({ tests = [], rating = null, vendor = {}, now = new
   } else add('recency', 0, 'No test on record.', {}, false);
 
   if (rating && Number.isFinite(rating.rating)) add('rating', Math.max(0, Math.min(100, rating.rating)) / 100, `Finnrick rating ${round1(rating.rating)} (${rating.classifier ?? 'default classifier'}, ${rating.scored_on ?? 'date unknown'}).`, { rating: rating.rating, scored_on: rating.scored_on, rank: rating.rank });
-  else add('rating', 0, 'Finnrick publishes no rating for this vendor.', {}, false);
+  // Not "Finnrick has no rating": a vendor record not read yet looks the same as one without a rating.
+  else add('rating', 0, 'No Finnrick rating on record (each vendor’s Finnrick record is re-read every 3 days).', {}, false);
 
   if (inWindow.length) {
     const known = inWindow.filter((t) => t.sent_by);

@@ -1,6 +1,6 @@
 {
   "name": "searchpeptides",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "description": "search.peptides: every research-peptide vendor and listing, faceted by price per mg, lab results, payment and where it ships from, with vendor contact details. Same query on the page, the API, the CLI, the TUI and MCP.",
   "license": "MIT",
