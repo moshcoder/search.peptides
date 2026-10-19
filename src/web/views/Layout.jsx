@@ -2,6 +2,7 @@ import { raw } from 'hono/html';
 import { readFileSync } from 'node:fs';
 import { config } from '../../config.js';
 import { DISCLOSURE, PRICE_NOTE } from '../../service.js';
+import { pitFooter } from '../../pit-footer.ts';
 
 // The stylesheet is cached for an hour; a content hash in its URL means a deploy never pairs new markup with old CSS.
 const CSS_VERSION = Bun.hash(readFileSync(new URL('../../../public/styles.css', import.meta.url))).toString(36);
@@ -61,25 +62,29 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             </nav>
           </div>
         </header>
-        <main class="wrap">{children}</main>
-        {config.crawlproofAdSlot && !path.startsWith('/sponsor') ? (
-          <>
-            <aside class="wrap cp-ad" data-cp-ad="" aria-label="Advertisement"></aside>
-            <script>
-              {raw(
-                `(function(){var e=document.currentScript.previousElementSibling;e.setAttribute('data-format',matchMedia('(min-width: 760px)').matches?'banner_728x90':'banner_300x250');e.setAttribute('data-slot',${JSON.stringify(config.crawlproofAdSlot)});var n=0;(function t(){if(window.crawlproofAds){window.crawlproofAds.scan();}else if(++n<20){setTimeout(t,250);}})();})();`,
-              )}
-            </script>
-            <script src="https://crawlproof.com/ad.js" defer></script>
-          </>
-        ) : null}
+        <main class="wrap">
+          {config.crawlproofAdSlot && !path.startsWith('/sponsor') ? (
+            <>
+              <aside class="cp-ad" data-cp-ad="" aria-label="Advertisement"></aside>
+              <script>
+                {raw(
+                  `(function(){var e=document.currentScript.previousElementSibling;e.setAttribute('data-format',matchMedia('(min-width: 760px)').matches?'banner_728x90':'banner_300x250');e.setAttribute('data-slot',${JSON.stringify(config.crawlproofAdSlot)});var n=0;(function t(){if(window.crawlproofAds){window.crawlproofAds.scan();}else if(++n<20){setTimeout(t,250);}})();})();`,
+                )}
+              </script>
+              <script src="https://crawlproof.com/ad.js" defer></script>
+            </>
+          ) : null}
+          {children}
+        </main>
         <footer class="wrap foot">
-          <p class="disclosure">{DISCLOSURE}</p>
-          <p class="muted small">{PRICE_NOTE}</p>
+          <p class="disclosure muted small">
+            {DISCLOSURE} {PRICE_NOTE}
+          </p>
           <p>
-            <a href="/docs">API</a> · <a href="/llms.txt">llms.txt</a> · <a href="/skill.md">skill.md</a> · <a href="/.well-known/openmcp.json">MCP</a> · <a href="https://github.com/moshcoder/search.peptides">Source</a> · <a href="https://nichedb.dev/c/peptides">nichedb</a> · <a href="https://pit.world/b/search.peptides">on pit.world</a> · Made by <a href="https://profullstack.com">Profullstack</a>
+            © {config.siteName} · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/moshcoder/search.peptides">Source</a>
           </p>
         </footer>
+        {raw(pitFooter())}
       </body>
     </html>
   );
