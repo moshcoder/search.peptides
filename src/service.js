@@ -115,7 +115,10 @@ function load() {
   peptides.sort((a, b) => b.offers - a.offers || a.name.localeCompare(b.name));
   // Longest name first so "BPC-157 + TB-500" is read before "BPC-157".
   const known = { peptides: peptides.filter((p) => p.offers).toSorted((a, b) => b.name.length - a.name.length) };
-  cache = { vendors, bySlug, offers, peptides, pepBySlug: new Map(peptides.map((p) => [p.slug, p])), known };
+  // Listings by peptide and by vendor: a facet count inside one peptide scans its few hundred rows, not all 20k.
+  const offerIndex = { peptide: groupBy(offers, 'peptide_slug'), vendor: groupBy(offers, 'vendor') };
+  // Facets per filter set, until the next invalidate(): a crawler asking for / again costs nothing.
+  cache = { vendors, bySlug, offers, offerIndex, facetMemo: new Map(), peptides, pepBySlug: new Map(peptides.map((p) => [p.slug, p])), known };
   return cache;
 }
 
@@ -184,9 +187,17 @@ function offerFacetDefs(c, f) {
  * Counting a 770-option facet one option at a time would rescan every listing per
  * option; for peptide and vendor one pass tallies the whole group instead.
  */
-function counter(rows, match, grouped) {
+function counter(rows, match, grouped, index = {}) {
   const memo = new Map();
   return (g) => {
+    // Pinned to one value of an indexed field: only that value's rows can match.
+    for (const [param, field] of grouped) {
+      const pool = g[param] !== undefined && index[param];
+      if (!pool) continue;
+      let n = 0;
+      for (const r of pool.get(g[param]) ?? []) if (r[field] === g[param] && match(r, g)) n++;
+      return n;
+    }
     for (const [param, field] of grouped) {
       if (g[param] === undefined) continue;
       const base = omit(g, [param]);
@@ -203,6 +214,16 @@ function counter(rows, match, grouped) {
     for (const r of rows) if (match(r, g)) n++;
     return n;
   };
+}
+
+function groupBy(rows, field) {
+  const m = new Map();
+  for (const r of rows) {
+    const list = m.get(r[field]);
+    if (list) list.push(r);
+    else m.set(r[field], [r]);
+  }
+  return m;
 }
 
 const PAGE = 50;
@@ -266,8 +287,16 @@ export function searchOffers(input, opts = {}) {
     offers: rows.slice((page - 1) * limit, page * limit).map(publicOffer),
   };
   if (opts.facets) {
-    const count = counter(c.offers, offerMatches, [['peptide', 'peptide_slug'], ['vendor', 'vendor']]);
-    out.facets = buildFacets(offerFacetDefs(c, f), f, count, toParams);
+    // The page number changes no count and no facet link (buildFacets drops it), so it is not part of the key.
+    const key = JSON.stringify(omit(f, ['page']));
+    let facets = c.facetMemo.get(key);
+    if (!facets) {
+      const count = counter(c.offers, offerMatches, [['peptide', 'peptide_slug'], ['vendor', 'vendor']], c.offerIndex);
+      facets = buildFacets(offerFacetDefs(c, f), f, count, toParams);
+      if (c.facetMemo.size >= 500) c.facetMemo.delete(c.facetMemo.keys().next().value);
+      c.facetMemo.set(key, facets);
+    }
+    out.facets = facets;
     out.chips = activeChips(out.facets, f, toParams, [
       { param: 'q', label: (v) => `“${v}”` },
       { param: 'peptide', label: (v) => c.pepBySlug.get(v)?.name ?? v },

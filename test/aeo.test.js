@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { invalidate } from '../src/service.js';
+import { invalidate, parse, searchOffers } from '../src/service.js';
 import { loadSnapshotIfEmpty } from '../src/sync.js';
 import { app } from '../src/web/app.jsx';
 
@@ -55,6 +55,26 @@ describe('answer-engine surfaces', () => {
     const vendor = (await get('/vendors')).body.match(/href="\/v\/([^"]+)"/)[1];
     const { body } = await get(`/v/${vendor}`);
     expect([...body.matchAll(/<script([^>]*)>/g)].every((m) => /ld\+json|\/app\.js/.test(m[1]))).toBe(true);
+  });
+
+  test('every facet count equals the results its link leads to (indexed + memoised counts)', () => {
+    for (const q of ['', 'peptide=glutathione', 'peptide=bpc-157&in_stock=1', 'max_per_mg=1&tested=1']) {
+      for (const g of searchOffers(parse(new URLSearchParams(q)), { facets: true }).facets)
+        for (const o of g.options) if (!o.active) expect([q, g.name, o.key, searchOffers(parse(new URLSearchParams(o.query))).total]).toEqual([q, g.name, o.key, o.count]);
+    }
+  });
+
+  test('a peptide page never duplicates another: ?peptide= redirects, filtered views are noindex', async () => {
+    const r = await app.request('/p/glutathione?peptide=bpc-157&in_stock=1');
+    expect(r.status).toBe(301);
+    expect(r.headers.get('location')).toBe('/p/bpc-157?in_stock=1');
+    expect((await app.request('/p/glutathione?peptide=glutathione')).headers.get('location')).toBe('/p/glutathione');
+    expect((await get('/p/glutathione')).body).toContain('content="index, follow"');
+    expect((await get('/p/glutathione?in_stock=1')).body).toContain('content="noindex, follow"');
+    expect((await get('/?text=bpc-157')).body).toContain('content="noindex, follow"');
+    expect((await get('/vendors?min_score=80')).body).toContain('content="noindex, follow"');
+    expect((await get('/p/glutathione')).body).not.toMatch(/href="\/p\/glutathione\?peptide=/);
+    for (const path of ['/about', '/.well-known/llms.txt']) expect((await get(path)).res.status).toBe(200);
   });
 
   test('HSTS only through the pit.world relay', async () => {
