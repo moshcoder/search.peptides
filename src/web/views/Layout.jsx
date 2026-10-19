@@ -8,7 +8,7 @@ import { pitFooter } from '../../pit-footer.ts';
 const CSS_VERSION = Bun.hash(readFileSync(new URL('../../../public/styles.css', import.meta.url))).toString(36);
 
 /** The one HTML shell: dark ground, phosphor accent, sticky search bar, the Moshpit ring bar on top. */
-export function Layout({ title, description, path = '/', jsonld, children, q = '', noindex = false }) {
+export function Layout({ title, description, path = '/', jsonld, children, q = '', noindex = false, adClaim = '' }) {
   const full = title ? `${title} · ${config.siteName}` : `${config.siteName}: every research peptide vendor, compared`;
   const desc = description ?? 'Every research-peptide vendor and listing, compared by price per mg, independent lab results, payment and where it ships from, with each vendor’s contact details. Same search on the page, the API, the CLI and MCP.';
   const nav = [
@@ -18,6 +18,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
     ['/sponsor', 'Sponsor'],
     ['/docs', 'API · CLI · MCP'],
   ];
+  const siteAd = Boolean(config.crawlproofAdSlot && !path.startsWith('/sponsor'));
   const active = (h) => (h === '/' ? path === '/' : path.startsWith(h));
   return (
     <html lang="en">
@@ -30,6 +31,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta name="theme-color" content="#0b0d12" />
         {noindex ? <meta name="robots" content="noindex" /> : null}
         {config.pitVerify ? <meta name="pit-verify" content={config.pitVerify} /> : null}
+        {adClaim ? <meta name="ad.network" content={adClaim} /> : null}
         <link rel="canonical" href={`${config.siteUrl}${path}`} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="preload" href="/fonts/Geist.woff2" as="font" type="font/woff2" crossorigin="" />
@@ -63,7 +65,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
           </div>
         </header>
         <main class="wrap">
-          {config.crawlproofAdSlot && !path.startsWith('/sponsor') ? (
+          {siteAd ? (
             <>
               <aside class="cp-ad" data-cp-ad="" aria-label="Advertisement"></aside>
               <script>
@@ -71,11 +73,11 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
                   `(function(){var e=document.currentScript.previousElementSibling;e.setAttribute('data-format',matchMedia('(min-width: 760px)').matches?'banner_728x90':'banner_300x250');e.setAttribute('data-slot',${JSON.stringify(config.crawlproofAdSlot)});var n=0;(function t(){if(window.crawlproofAds){window.crawlproofAds.scan();}else if(++n<20){setTimeout(t,250);}})();})();`,
                 )}
               </script>
-              <script src="https://crawlproof.com/ad.js" defer></script>
             </>
           ) : null}
           {children}
         </main>
+        {siteAd || adClaim ? <script src="https://crawlproof.com/ad.js" defer></script> : null}
         <footer class="wrap foot">
           <p class="disclosure muted small">
             {DISCLOSURE} {PRICE_NOTE}
