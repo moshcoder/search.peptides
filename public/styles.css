@@ -118,7 +118,8 @@ summary { cursor: pointer; }
 .empty { color: var(--muted); padding: 2rem 0; }
 .pager { display: flex; gap: 14px; align-items: center; }
 .disclosure { color: var(--faint); font-size: 0.8rem; margin-top: 2rem; }
-.foot { color: var(--faint); font-size: 0.82rem; border-top: 1px solid var(--line); margin-top: 3rem; padding-top: 1rem; padding-bottom: 2rem; }
+.foot { color: var(--faint); font-size: 0.82rem; border-top: 1px solid var(--line); margin-top: 3rem; padding-top: .75rem; padding-bottom: .75rem; }
+.foot p { margin: .25rem 0; }
 @media (max-width: 520px) { .facts { grid-template-columns: repeat(2, 1fr); } .bigsearch { flex-direction: column; } }
 @media (max-width: 640px) { .chan-tbl th:nth-child(2), .chan-tbl td:nth-child(2) { display: none; } .chan-tbl td { font-size: 0.82rem; } }
 

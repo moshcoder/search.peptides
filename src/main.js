@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { close } from './db.js';
 import { buildDaemon } from './daemon.js';
+import { startPitFooterRefresh } from './pit-footer.ts';
 import { startRingRefresh } from './ring.ts';
 import { loadSnapshotIfEmpty } from './sync.js';
 import { app, setDaemon } from './web/app.jsx';
@@ -18,6 +19,7 @@ if (config.roles.includes('worker')) {
 
 let server = null;
 if (config.roles.includes('web')) {
+  startPitFooterRefresh('search.peptides');
   server = Bun.serve({ port: config.port, hostname: '127.0.0.1', fetch: app.fetch, idleTimeout: 60 });
   console.log(`[web] ${config.siteName} on 127.0.0.1:${config.port} at ${config.siteUrl} (${config.roles.join(',')})`);
 }
