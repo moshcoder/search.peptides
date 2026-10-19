@@ -43,17 +43,26 @@ export function peptideMatcher(names) {
   };
 }
 
-/** "Dosage: 5 MG / 5 MG", "BPC-157 10mg x 10 vials" → { amount, unit, pack, parts }. Pure. */
-export function readAmount(text) {
-  const t = String(text ?? '').toLowerCase().replace(/,/g, '.');
+/**
+ * "Dosage: 10 MG", "BPC-157 10mg x 10 vials", "Glutathione 1200mg x 10vials, 12000mg" →
+ * { amount (per vial), unit, pack, parts }. Only a blend's amounts add up ("5 MG / 5 MG");
+ * otherwise the first amount is the vial and a later one is a pack total, not more peptide. Pure.
+ */
+export function readAmount(text, { blend = false } = {}) {
+  const t = String(text ?? '')
+    .toLowerCase()
+    // "1,000mg" is a thousand; "2,5mg" is two and a half.
+    .replace(/(\d),(\d{3})(?!\d)/g, '$1$2')
+    .replace(/(\d),(\d)/g, '$1.$2');
   const parts = [...t.matchAll(/(\d+(?:\.\d+)?)\s*(mg|mcg|µg|ug|iu|ml|g)\b/g)].map((m) => ({ amount: Number(m[1]), unit: m[2] === 'µg' || m[2] === 'ug' ? 'mcg' : m[2] }));
   if (!parts.length) return null;
-  const pack = Number(t.match(/(?:x\s*|×\s*)(\d{1,3})\s*(?:vials?|pcs|pieces|kits?)?\b/)?.[1] ?? t.match(/\b(\d{1,3})\s*(?:vials?|pcs|pieces)\b/)?.[1] ?? 1) || 1;
-  // A blend lists one amount per peptide; the mass ones add up to what the vial holds.
+  const pack = Number(t.match(/(?:x|×|\*)\s*(\d{1,3})\s*(?:vials?|pcs|pieces|kits?)?\b/)?.[1] ?? t.match(/\b(\d{1,3})\s*(?:vials?|pcs|pieces)\b/)?.[1] ?? 1) || 1;
   const mass = parts.filter((p) => toMg[p.unit] !== undefined);
-  if (mass.length >= 1) {
-    const mg = mass.reduce((n, p) => n + p.amount * toMg[p.unit], 0);
-    return { amount: +mg.toFixed(4), unit: 'mg', pack, parts: mass.length };
+  if (mass.length) {
+    const blendParts = blend || /\d\s*(?:mg|mcg|g)\s*\/\s*\d/.test(t);
+    const use = blendParts ? mass : [mass[0]];
+    const mg = use.reduce((n, p) => n + p.amount * toMg[p.unit], 0);
+    return { amount: +mg.toFixed(4), unit: 'mg', pack, parts: use.length };
   }
   return { amount: parts[0].amount, unit: parts[0].unit, pack, parts: 1 };
 }
@@ -62,7 +71,8 @@ export function readAmount(text) {
 export function toOffer({ vendor, id, name, label, price, currency, inStock, url, match }) {
   const pep = match(`${name} ${label ?? ''}`);
   if (!pep) return null;
-  const amt = readAmount(`${label ?? ''} ${name}`);
+  // Read the label first (the variation's own size), then the name; a blend's amounts add up.
+  const amt = readAmount(`${label ?? ''} ${name}`, { blend: /\+|\/|blend/i.test(pep.name) });
   const p = Number(price);
   if (!amt || !Number.isFinite(p) || p <= 0) return null;
   const cur = String(currency ?? 'USD').toUpperCase();
