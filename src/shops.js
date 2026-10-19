@@ -68,7 +68,11 @@ export function readAmount(text, { blend = false } = {}) {
 }
 
 /** One shop product (or variation) → a listing row, or null when it is not a peptide we can price. Pure. */
+// Shop supplies that mention a peptide (an insulin syringe) or a size (a 30G needle) are not listings.
+const SUPPLIES = /\b(?:syringes?|needles?|swabs?|alcohol (?:prep )?pads?|empty vials?|sharps|lancets?|pen needles?|gauge)\b/i;
+
 export function toOffer({ vendor, id, name, label, price, currency, inStock, url, match }) {
+  if (SUPPLIES.test(`${name} ${label ?? ''}`)) return null;
   const pep = match(`${name} ${label ?? ''}`);
   if (!pep) return null;
   // Read the label first (the variation's own size), then the name; a blend's amounts add up.
