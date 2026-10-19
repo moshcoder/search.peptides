@@ -1,4 +1,3 @@
-import { raw } from 'hono/html';
 import { countryName, PAYMENT_LABELS } from '../../core/normalize.js';
 import { CONTACT_LABELS } from '../../service.js';
 
@@ -178,7 +177,8 @@ export function ResultsHead({ title, base, params, sorts, sort, h1 = true }) {
       {h1 ? <h1 class="h-results">{title}</h1> : <h2 class="h-results">{title}</h2>}
       <form class="sort-form" method="get" action={base}>
         {[...params].filter(([k]) => k !== 'sort' && k !== 'page').map(([k, v]) => <input type="hidden" name={k} value={v} />)}
-        <select name="sort" aria-label="Sort by" onchange="this.form.submit()">
+        {/* public/app.js applies a mouse pick at once and a keyboard pick on Enter or blur, so arrowing through never submits. */}
+        <select name="sort" aria-label="Sort by">
           {sorts.map(([v, label]) => (
             <option value={v} selected={(sort ?? '') === v}>
               {label}
@@ -192,12 +192,9 @@ export function ResultsHead({ title, base, params, sorts, sort, h1 = true }) {
           Filters
         </button>
       </form>
-      <script>{raw(FACET_JS)}</script>
     </header>
   );
 }
-
-const FACET_JS = `(function(){var f=document.getElementById('facets');if(!f)return;document.querySelectorAll('[data-open-facets]').forEach(function(b){b.addEventListener('click',function(){f.classList.add('open');document.body.style.overflow='hidden';});});document.querySelectorAll('[data-close-facets]').forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();f.classList.remove('open');document.body.style.overflow='';});});})();`;
 
 /** Previous / next, keeping every filter. */
 export function Pager({ base, params, page, pages }) {
