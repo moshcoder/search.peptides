@@ -22,6 +22,9 @@ export const config = {
   sponsorUsd: Number(env('SPONSOR_USD', 49)),
   sponsorDays: Number(env('SPONSOR_DAYS', 30)),
   pitVerify: env('PIT_VERIFY', ''),
-  crawlproofSite: env('CRAWLPROOF_SITE', ''),
+  crawlproofSite: env('CRAWLPROOF_SITE', '77a9fbb4-9997-4b2d-9be3-774d2d0508eb'),
   crawlproofAdSlot: env('CRAWLPROOF_AD_SLOT', ''),
+  // ad.network publisher unit on the home page: claim code (verified from the raw HTML) + crawlproof slot.
+  adNetworkClaim: env('AD_NETWORK_CLAIM', 'FKUKmlmS305hF-4C'),
+  adNetworkSlot: env('AD_NETWORK_SLOT', '8e1ad4ad-2129-4a4a-88c3-179120731fcf'),
 };

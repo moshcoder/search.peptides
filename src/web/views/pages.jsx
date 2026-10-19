@@ -35,7 +35,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/' }
   const title = peptide ? `${peptide.name}: prices per mg and lab results` : searched ? `Peptide listings${text ? `: ${text}` : ''}` : null;
   const params = toParams(peptide ? { ...f, peptide: undefined } : f);
   return (
-    <Layout title={title} path={peptide ? `/p/${peptide.slug}` : '/'} q={peptide ? '' : text} description={peptide ? `${peptide.name} from ${peptide.vendors} vendors, ${peptide.offers} listings${Number.isFinite(peptide.min_usd_per_mg) ? ` from $${peptide.min_usd_per_mg}/mg` : ''}, with independent lab results.` : undefined}>
+    <Layout title={title} path={peptide ? `/p/${peptide.slug}` : '/'} q={peptide ? '' : text} adClaim={peptide ? '' : config.adNetworkClaim} description={peptide ? `${peptide.name} from ${peptide.vendors} vendors, ${peptide.offers} listings${Number.isFinite(peptide.min_usd_per_mg) ? ` from $${peptide.min_usd_per_mg}/mg` : ''}, with independent lab results.` : undefined}>
       {peptide ? (
         <>
           <p class="crumbs">
@@ -92,6 +92,9 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/' }
             </p>
           ) : null}
           {searched ? <ApiReadout result={result} tool="search_listings" /> : null}
+          {config.adNetworkClaim ? (
+            <aside class="cp-ad" data-ad-network={config.adNetworkClaim} data-cp-ad="" data-slot={config.adNetworkSlot} data-format="banner_300x250" aria-label="Advertisement"></aside>
+          ) : null}
         </>
       )}
       <div class="results-layout">
