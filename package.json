@@ -6,15 +6,22 @@
   "license": "MIT",
   "repository": "github:moshcoder/search.peptides",
   "homepage": "https://search.peptides.pit.world",
-  "bin": { "peptides": "bin/peptides.js" },
+  "bin": {
+    "peptides": "bin/peptides.js"
+  },
   "files": ["bin", "src", "public", "data/snapshot.json.gz", "README.md"],
-  "engines": { "bun": ">=1.3.0" },
+  "engines": {
+    "bun": ">=1.3.0"
+  },
   "scripts": {
     "dev": "bun run --hot src/main.js",
     "start": "bun src/main.js",
     "sync": "bun src/sync.js",
-    "enrich": "bun src/enrich.js",
+    "daemon": "bun bin/peptides.js daemon",
     "test": "bun test"
   },
-  "dependencies": { "hono": "^4.10.3" }
+  "dependencies": {
+    "@profullstack/scraper-daemon": "0.1.0",
+    "hono": "^4.10.3"
+  }
 }

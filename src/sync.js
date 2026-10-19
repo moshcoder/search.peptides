@@ -142,18 +142,20 @@ export function transform(doc) {
 
 export function write(rows, { force = false } = {}) {
   const db = open();
-  const have = db.query('SELECT count(*) n FROM vendors').get().n;
+  const have = db.query("SELECT count(*) n FROM vendors WHERE origin = 'register'").get().n;
   if (!force && have && rows.vendors.length < have / 2) throw new Error(`refusing a register of ${rows.vendors.length} vendors over the ${have} we hold`);
   const vcols = ['slug', 'name', 'website', 'shop_url', 'location', 'country', 'score', 'rank', 'tests', 'tests_pass', 'tests_fail', 'latest_test', 'cost_per_mg', 'ordering', 'ordering_evidence', 'payments', 'payments_raw', 'ships_from', 'ships_to', 'shipping', 'min_order', 'discounts', 'coupons', 'contacts', 'terms_source', 'notes', 'offers', 'peptides', 'min_usd_per_mg', 'checked_at'];
   const ocols = ['id', 'vendor', 'peptide', 'peptide_slug', 'name', 'form', 'unit', 'amount', 'pack_qty', 'price', 'currency', 'price_usd', 'total_mg', 'usd_per_mg', 'usd_per_unit', 'in_stock', 'url', 'blend'];
-  const ins = (table, cols) => db.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`);
-  const addV = ins('vendors', vcols);
+  const ins = (table, cols, verb = 'INSERT') => db.query(`${verb} INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`);
+  // A register row replaces a vendor discovery added earlier under the same slug.
+  const addV = ins('vendors', vcols, 'INSERT OR REPLACE');
   const addO = ins('offers', ocols);
   const addT = ins('lab_tests', ['vendor', 'peptide', 'peptide_slug', 'tested_on', 'result']);
   const addR = ins('ratings', ['vendor', 'peptide', 'peptide_slug', 'rating', 'n_tests', 'cost_per_mg']);
   const val = (v) => (v !== null && typeof v === 'object' ? J(v) : v ?? null);
   db.transaction(() => {
-    db.exec('DELETE FROM vendors; DELETE FROM offers; DELETE FROM lab_tests; DELETE FROM ratings;');
+    // Vendors discovery added (origin 'finnrick') stay; everything the register owns is replaced.
+    db.exec("DELETE FROM vendors WHERE origin = 'register'; DELETE FROM offers; DELETE FROM lab_tests; DELETE FROM ratings;");
     for (const v of rows.vendors) addV.run(...vcols.map((k) => val(v[k])));
     for (const o of rows.offers) addO.run(...ocols.map((k) => val(o[k])));
     for (const t of rows.tests) addT.run(t.vendor, t.peptide, t.peptide_slug, t.tested_on, t.result);
@@ -162,10 +164,15 @@ export function write(rows, { force = false } = {}) {
   return { vendors: rows.vendors.length, offers: rows.offers.length, tests: rows.tests.length, ratings: rows.ratings.length };
 }
 
-export async function sync({ url = config.sourceUrl, force = false } = {}) {
+const plainJson = async (url) => {
   const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': `${config.siteName} (+${config.siteUrl})` }, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
-  const counts = write(transform(await res.json()), { force });
+  return res.json();
+};
+
+/** `getJson` is the daemon's polite fetcher when it runs the sync; plain fetch from the CLI. */
+export async function sync({ url = config.sourceUrl, force = false, getJson = plainJson } = {}) {
+  const counts = write(transform(await getJson(url)), { force });
   setMeta('synced_at', new Date().toISOString());
   setMeta('synced_from', url);
   console.log(`[sync] ${counts.vendors} vendors, ${counts.offers} offers, ${counts.tests} lab tests, ${counts.ratings} ratings`);
@@ -174,7 +181,7 @@ export async function sync({ url = config.sourceUrl, force = false } = {}) {
 
 /** First boot with no network still has a register: the snapshot committed with the code. */
 export function loadSnapshotIfEmpty() {
-  if (open().query('SELECT count(*) n FROM vendors').get().n) return null;
+  if (open().query("SELECT count(*) n FROM vendors WHERE origin = 'register'").get().n) return null;
   const doc = JSON.parse(gunzipSync(readFileSync(SNAPSHOT)).toString('utf8'));
   const counts = write(transform(doc));
   if (!getMeta('synced_at')) setMeta('synced_at', '1970-01-01T00:00:00.000Z');

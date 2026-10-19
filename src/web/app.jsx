@@ -119,7 +119,16 @@ app.get('/api/v1/export', (c) => {
   const listings = searchOffers({ filters: {}, understood: [], text: '' }, { all: true }).offers;
   return json(c, { site: config.siteUrl, generated_at: new Date().toISOString(), disclosure: DISCLOSURE, note: PRICE_NOTE, stats: stats(), peptides: listPeptides(), vendors, listings });
 });
-app.get('/health', (c) => c.json({ ok: true, version, ...stats() }));
+// The updater daemon, when this process runs it (ROLES includes worker).
+let daemon = null;
+export const setDaemon = (d) => {
+  daemon = d;
+};
+app.get('/api/v1/daemon', async (c) => (daemon ? json(c, await daemon.status()) : json(c, { running: false, note: 'this process does not run the daemon' })));
+app.get('/health', async (c) => {
+  const d = daemon ? await daemon.status() : null;
+  return c.json({ ok: true, version, ...stats(), daemon: d && { running: d.running, stalled: d.tasks.filter((t) => t.stalled).map((t) => t.name), tasks: Object.fromEntries(d.tasks.map((t) => [t.name, t.kind === 'queue' ? { items: t.items, due: t.due, failing: t.failing } : { lastOk: t.lastOk, fails: t.fails }])) } });
+});
 
 /* ---------- MCP + agent discovery ---------- */
 

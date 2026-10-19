@@ -10,7 +10,8 @@
  *   peptides stats
  *   peptides tui                 interactive search
  *   peptides mcp                 stdio MCP server (the site's, or the local database with --local)
- *   peptides serve | sync | enrich
+ *   peptides serve | sync
+ *   peptides daemon status | daemon run <task> [vendor]   the updater daemon
  *
  * Talks to PEPTIDES_URL (default https://search.peptides.pit.world); --local reads the SQLite file directly.
  */
@@ -139,8 +140,16 @@ async function main() {
       return import('../src/main.js');
     case 'sync':
       return (await import('../src/sync.js')).sync({ force: !!flags.force });
-    case 'enrich':
-      return (await import('../src/enrich.js')).enrich({ only: flags.vendor });
+    case 'daemon': {
+      // `peptides daemon status` asks the site; `peptides daemon run <task> [key]` runs one task here, now.
+      if (pos[0] === 'status') return out(await api('/api/v1/daemon'), (d) => JSON.stringify(d, null, 2));
+      if (pos[0] !== 'run' || !pos[1]) throw new Error('usage: peptides daemon status | peptides daemon run <register|discover|finnrick-contacts|site-contacts> [vendor-slug]');
+      (await import('../src/sync.js')).loadSnapshotIfEmpty();
+      const d = (await import('../src/daemon.js')).buildDaemon();
+      const r = await d.runNow(pos[1], pos[2]);
+      console.log(JSON.stringify(Array.isArray(r) ? r.map((x) => ({ ok: x.ok, error: x.error?.message })) : { ok: r.ok, result: r.result, error: r.error?.message }, null, 2));
+      return process.exit(0);
+    }
     default:
       console.log(`search.peptides: every research-peptide vendor and listing, compared
 
@@ -152,7 +161,8 @@ async function main() {
   peptides peptides | stats
   peptides tui                 interactive
   peptides mcp                 stdio MCP (claude mcp add peptides -- bunx searchpeptides mcp)
-  peptides serve | sync | enrich
+  peptides serve | sync
+  peptides daemon status | daemon run <task> [vendor]
 
   --json  raw output    --local  read the local database    PEPTIDES_URL=${BASE}`);
   }

@@ -1,21 +1,20 @@
-import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
 import { config } from './config.js';
-import { open, setMeta } from './db.js';
-import { invalidate } from './service.js';
+import { open } from './db.js';
 
 /**
- * Contact details for every vendor: emails, phones, socials and websites, read from
- * the vendor's own site (the homepage and the usual contact/about paths) plus the
- * links the register already holds (WhatsApp numbers, Telegram, Discord, Instagram).
+ * Contact details for every vendor: emails, phones, socials and websites, from two
+ * places, each kept as its own set in vendor_contacts (a register sync never touches it):
  *
- * Kept in vendor_contacts, which a register sync never touches, and refreshed every
- * ENRICH_DAYS. Each fetch: http(s) on 80/443, every resolved address public, every
- * redirect re-checked, robots.txt honoured, 10 s and 1 MB caps.
+ *   site      the vendor's own site: the homepage and the usual contact/about pages,
+ *             plus the links the register already holds (WhatsApp numbers, Telegram…)
+ *   finnrick  Finnrick's public vendor record, which lists the contacts it has vouched for
+ *
+ * Both run as queues on the scraper daemon (src/daemon.js), one vendor at a time per
+ * host, through its fetcher: robots.txt honoured, public addresses only, every
+ * redirect re-checked, time and size capped.
  */
-const UA = `Mozilla/5.0 (compatible; search.peptides/0.1; +${config.siteUrl}/about)`;
 const PATHS = ['/', '/contact', '/contact-us', '/pages/contact', '/pages/contact-us', '/about', '/about-us', '/pages/about-us'];
-const MAX = 1_000_000;
+export const FINNRICK = 'https://www.finnrick.com';
 
 const SOCIAL = [
   ['instagram', /^(?:www\.)?instagram\.com$/],
@@ -33,7 +32,7 @@ const SOCIAL = [
 // Share buttons and platform chrome, not the vendor's own account.
 const SOCIAL_NOISE = /\/(sharer|share|intent|dialog|plugins|tr|hashtag|login|signup|policies|privacy|about|help|legal|watch\?|embed)\b|\/(home|explore)\/?$|^\/?$/i;
 // Hosts where the "website" is a listing on someone else's site; we read socials from them but never crawl them.
-const NO_CRAWL = /(^|\.)(echemi\.com|alibaba\.com|globalsources\.com|chemicalbook\.com|made-in-china\.com|facebook\.com|instagram\.com|discord\.gg|discord\.com|t\.me|wa\.me|whatsapp\.com|beacons\.ai|linktr\.ee|reddit\.com|x\.com|twitter\.com|tiktok\.com|youtube\.com|glp1forum\.com|peptide\.chat)$/;
+const NO_CRAWL = /(^|\.)(echemi\.com|alibaba\.com|globalsources\.com|chemicalbook\.com|made-in-china\.com|facebook\.com|instagram\.com|discord\.gg|discord\.com|t\.me|wa\.me|whatsapp\.com|beacons\.ai|linktr\.ee|reddit\.com|x\.com|twitter\.com|tiktok\.com|youtube\.com|glp1forum\.com|peptide\.chat|finnrick\.com)$/;
 
 export function socialKind(url) {
   try {
@@ -49,17 +48,27 @@ const BAD_EMAIL = /\.(png|jpe?g|gif|webp|svg|css|js)$|@(example|domain|email|sen
 export function emailsIn(html) {
   const out = new Set();
   const text = html.replace(/&#64;|&commat;|\s*\[at\]\s*|\s*\(at\)\s*/gi, '@').replace(/&#46;|\s*\[dot\]\s*/gi, '.');
-  for (const m of text.matchAll(/mailto:([^"'?>\s]+)/gi)) out.add(decodeURIComponent(m[1]).toLowerCase());
+  for (const m of text.matchAll(/mailto:([^"'?>\s]+)/gi)) {
+    try {
+      out.add(decodeURIComponent(m[1]).toLowerCase());
+    } catch {}
+  }
   for (const m of text.matchAll(EMAIL)) out.add(m[0].toLowerCase());
   return [...out].filter((e) => !BAD_EMAIL.test(e) && /^[^@]+@[^@]+\.[a-z]{2,}$/.test(e));
 }
 
 /** +1 (555) 010-9999 → +15550109999; anything under 7 digits is not a phone. */
 export function normalizePhone(s) {
-  const raw = decodeURIComponent(String(s)).replace(/^tel:/i, '').trim();
+  let raw;
+  try {
+    raw = decodeURIComponent(String(s));
+  } catch {
+    raw = String(s);
+  }
+  raw = raw.replace(/^tel:/i, '').trim();
   const digits = raw.replace(/[^\d]/g, '');
   if (digits.length < 7 || digits.length > 15) return null;
-  return raw.trim().startsWith('+') || digits.length > 10 ? `+${digits}` : digits;
+  return raw.startsWith('+') || digits.length > 10 ? `+${digits}` : digits;
 }
 
 export function phonesIn(html) {
@@ -99,10 +108,7 @@ export function contactsIn(html, base) {
   for (const l of linksIn(html, base)) {
     const k = socialKind(l);
     if (!k) continue;
-    const u = new URL(l);
-    u.hash = '';
-    if (k !== 'whatsapp') u.search = '';
-    found.push({ kind: k, value: u.toString().replace(/\/$/, '') });
+    found.push({ kind: k, value: l });
     if (k === 'whatsapp') {
       const n = whatsappNumber(l);
       if (n) found.push({ kind: 'phone', value: n });
@@ -111,78 +117,9 @@ export function contactsIn(html, base) {
   return found;
 }
 
-const privateV4 = (ip) => {
-  const [a, b] = ip.split('.').map(Number);
-  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
-};
-function isPublic(ip) {
-  if (isIP(ip) === 4) return !privateV4(ip);
-  const v = ip.toLowerCase();
-  const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return !privateV4(mapped[1]);
-  return !(v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80') || v.startsWith('64:ff9b'));
-}
-
-async function safeUrl(url) {
-  const u = new URL(url);
-  if (!/^https?:$/.test(u.protocol) || (u.port && !['80', '443'].includes(u.port))) return false;
-  const addrs = isIP(u.hostname) ? [{ address: u.hostname }] : await lookup(u.hostname, { all: true }).catch(() => []);
-  return addrs.length > 0 && addrs.every((a) => isPublic(a.address));
-}
-
-/** GET with manual redirects, each hop re-checked. Returns { url, text } or null. */
-export async function fetchText(url, hops = 4) {
-  let at = url;
-  for (let i = 0; i <= hops; i++) {
-    if (!(await safeUrl(at))) return null;
-    const res = await fetch(at, { redirect: 'manual', headers: { 'user-agent': UA, accept: 'text/html,text/plain;q=0.9,*/*;q=0.1' }, signal: AbortSignal.timeout(10_000) }).catch(() => null); // threatcrush-ignore: ssrf (safeUrl checks every hop)
-    if (!res) return null;
-    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-      at = new URL(res.headers.get('location'), at).toString();
-      continue;
-    }
-    if (!res.ok || !/text|html|xml/.test(res.headers.get('content-type') ?? 'text/html')) return null;
-    const reader = res.body?.getReader();
-    if (!reader) return null;
-    let size = 0;
-    const chunks = [];
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      chunks.push(value);
-      if (size > MAX) {
-        reader.cancel().catch(() => {});
-        break;
-      }
-    }
-    return { url: at, text: new TextDecoder().decode(Buffer.concat(chunks)) };
-  }
-  return null;
-}
-
-/** A robots.txt path pattern (`*` any run, trailing `$` end) as a prefix regex. */
-const robotsRe = (pattern) => new RegExp(`^${pattern.replace(/[.+?^{}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\?\$$/, '$')}`);
-
-/** Longest matching rule for `*` (or our agent) wins, Allow on a tie; true when the path may be fetched. */
-export function robotsAllows(robots, path) {
-  let applies = false;
-  let best = { len: -1, allow: true };
-  for (const line of String(robots ?? '').split(/\r?\n/)) {
-    const [k, ...rest] = line.replace(/#.*/, '').split(':');
-    const key = k?.trim().toLowerCase();
-    const val = rest.join(':').trim();
-    if (key === 'user-agent') applies = val === '*' || /search\.peptides/i.test(val);
-    else if (applies && (key === 'disallow' || key === 'allow') && val && robotsRe(val).test(path)) {
-      if (val.length > best.len || (val.length === best.len && key === 'allow')) best = { len: val.length, allow: key === 'allow' };
-    }
-  }
-  return best.allow;
-}
-
 /** One spelling per contact, so the same account found on three pages is one row. Null when it is not usable. */
 export function normalizeContact(kind, value) {
-  if (kind === 'email') return String(value).toLowerCase();
+  if (kind === 'email') return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(String(value)) ? String(value).toLowerCase() : null;
   if (kind === 'phone') return normalizePhone(value);
   try {
     const u = new URL(value);
@@ -201,15 +138,32 @@ export function normalizeContact(kind, value) {
   }
 }
 
-async function enrichVendor(v) {
+/** Replace one origin's set of contacts for a vendor. */
+export function saveContacts(vendor, origin, found, now = new Date().toISOString()) {
+  const db = open();
+  const put = db.query('INSERT INTO vendor_contacts (vendor, kind, value, source, found_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET source = excluded.source, found_at = excluded.found_at');
+  const seen = new Set();
+  db.transaction(() => {
+    // Rows are tagged "<origin>:<page>"; a vendor's set from one origin is replaced whole, so a removed email stops showing.
+    db.query("DELETE FROM vendor_contacts WHERE vendor = ? AND (source = ? OR source LIKE ? || ':%')").run(vendor, origin, origin);
+    for (const c of found) {
+      const value = normalizeContact(c.kind, c.value);
+      if (!value) continue;
+      const key = `${c.kind}|${value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      put.run(vendor, c.kind, value, c.source ? `${origin}:${c.source}` : origin, now);
+    }
+  })();
+  return seen.size;
+}
+
+/** The register's own links for a vendor plus whatever its site's pages say. */
+export async function siteContacts(v, fetcher) {
   const found = [];
   const add = (list, source) => {
-    for (const c of list) {
-      const value = normalizeContact(c.kind, c.value);
-      if (value) found.push({ kind: c.kind, value, source });
-    }
+    for (const c of list) found.push({ ...c, source });
   };
-  // What the register already has.
   for (const c of JSON.parse(v.contacts ?? '[]')) {
     const k = socialKind(c.url);
     if (k) add([{ kind: k, value: c.url }], 'register');
@@ -220,66 +174,68 @@ async function enrichVendor(v) {
   for (const url of [v.website, v.shop_url].filter(Boolean)) {
     const k = socialKind(url);
     if (k) add([{ kind: k, value: url }], 'register');
-    else add([{ kind: 'website', value: new URL(url).origin }], 'register');
+    else add([{ kind: 'website', value: url }], 'register');
   }
-  const home = [v.shop_url, v.website].filter(Boolean).map((u) => new URL(u)).find((u) => !NO_CRAWL.test(u.hostname.replace(/^www\./, '')) && !socialKind(u.toString()));
+  const home = crawlable(v);
   if (home) {
-    const robots = (await fetchText(`${home.origin}/robots.txt`).catch(() => null))?.text ?? '';
     let pages = 0;
+    let lastErr = null;
     for (const path of PATHS) {
-      if (!robotsAllows(robots, path)) continue;
-      const page = await fetchText(`${home.origin}${path}`).catch(() => null);
-      if (!page) continue;
-      pages++;
-      add(contactsIn(page.text, page.url), page.url);
-      if (path === '/' && new URL(page.url).origin !== home.origin) add([{ kind: 'website', value: new URL(page.url).origin }], page.url);
+      try {
+        const page = await fetcher.text(`${home.origin}${path}`, { accept: 'text/html' });
+        pages++;
+        add(contactsIn(page.text, page.url), page.url);
+        if (path === '/' && new URL(page.url).origin !== home.origin) add([{ kind: 'website', value: page.url }], page.url);
+      } catch (err) {
+        lastErr = err;
+        // A site that refuses the homepage refuses the rest; stop asking.
+        if (path === '/' && err?.code !== 'status') break;
+        if (err?.retryAfterMs) throw err;
+      }
     }
-    if (pages && !found.some((c) => c.kind === 'website' && c.value === home.origin)) add([{ kind: 'website', value: home.origin }], home.origin);
+    if (!pages && lastErr && lastErr.code !== 'robots') throw lastErr;
   }
   return found;
 }
 
-async function pool(items, n, fn) {
-  let i = 0;
-  await Promise.all(Array.from({ length: n }, async () => {
-    while (i < items.length) await fn(items[i++]);
-  }));
+export function crawlable(v) {
+  for (const u of [v.shop_url, v.website]) {
+    if (!u) continue;
+    try {
+      const url = new URL(u);
+      if (!NO_CRAWL.test(url.hostname.replace(/^www\./, '')) && !socialKind(url.toString())) return url;
+    } catch {}
+  }
+  return null;
 }
 
-export async function enrich({ only, concurrency = 8 } = {}) {
-  const db = open();
-  const vendors = db.query('SELECT slug, website, shop_url, contacts FROM vendors').all().filter((v) => !only || v.slug === only);
-  const now = new Date().toISOString();
-  const put = db.query('INSERT INTO vendor_contacts (vendor, kind, value, source, found_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET source = excluded.source, found_at = excluded.found_at');
-  let done = 0;
-  let withAny = 0;
-  await pool(vendors, concurrency, async (v) => {
-    const found = await enrichVendor(v).catch(() => []);
-    const seen = new Set();
-    db.transaction(() => {
-      // A vendor's set is replaced whole, so a removed email stops showing on the next run.
-      db.query('DELETE FROM vendor_contacts WHERE vendor = ?').run(v.slug);
-      for (const c of found) {
-        const key = `${c.kind}|${c.value}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        put.run(v.slug, c.kind, c.value, c.source, now);
+/** Finnrick's public record for a vendor: the contacts it lists, kept when vouched for or confident. */
+export async function finnrickContacts(slug, fetcher) {
+  const doc = await fetcher.json(`${FINNRICK}/api/v1/vendors/${encodeURIComponent(slug)}`);
+  return finnrickToContacts(doc?.vendor);
+}
+
+export function finnrickToContacts(vendor) {
+  const found = [];
+  for (const c of vendor?.contacts ?? []) {
+    if (!(c?.vouched || (c?.confidence ?? 0) >= 0.6)) continue;
+    const kind = String(c.kind ?? '').toLowerCase();
+    if (kind === 'email') found.push({ kind: 'email', value: c.value ?? String(c.url ?? '').replace(/^mailto:/, '') });
+    else if (kind === 'phone' || kind === 'tel') found.push({ kind: 'phone', value: c.value ?? c.url });
+    else if (c.url) {
+      const k = socialKind(c.url);
+      found.push({ kind: k ?? 'website', value: c.url });
+      if (k === 'whatsapp') {
+        const n = whatsappNumber(c.url);
+        if (n) found.push({ kind: 'phone', value: n });
       }
-    })();
-    done++;
-    if (seen.size) withAny++;
-  });
-  setMeta('enriched_at', now);
-  invalidate();
-  const summary = db.query('SELECT kind, count(DISTINCT vendor) vendors, count(*) n FROM vendor_contacts GROUP BY kind ORDER BY vendors DESC').all();
-  console.log(`[enrich] ${done} vendors read, ${withAny} with contact details: ${summary.map((s) => `${s.kind} ${s.vendors}`).join(', ')}`);
-  return { vendors: done, with_contacts: withAny, kinds: summary };
+    }
+  }
+  if (vendor?.contact_url && !found.some((f) => f.kind === 'website')) {
+    const k = socialKind(vendor.contact_url);
+    found.push({ kind: k ?? 'website', value: vendor.contact_url });
+  }
+  return found;
 }
 
-if (import.meta.main) {
-  const only = process.argv.find((a, i) => process.argv[i - 1] === '--vendor');
-  enrich({ only }).then(() => process.exit(0), (err) => {
-    console.error(`[enrich] ${err.message}`);
-    process.exit(1);
-  });
-}
+export const userAgent = `search.peptides/0.2 (+${config.siteUrl}/docs)`;
