@@ -2,7 +2,7 @@ import { raw } from 'hono/html';
 import { config } from '../../config.js';
 import { countryName, PAYMENT_LABELS } from '../../core/normalize.js';
 import { toParams } from '../../core/parse.js';
-import { Layout } from './Layout.jsx';
+import { Layout, REPO } from './Layout.jsx';
 import { ActiveChips, Chips, FacetRail, ORDERING, OfferRow, Pager, passText, perMg, ResultsHead, scoreText, size, usd, VendorRow } from './parts.jsx';
 
 const OFFER_SORTS = [['', 'Cheapest per mg'], ['price', 'Lowest price'], ['score', 'Best vendor score'], ['size', 'Largest size'], ['name', 'Peptide A–Z']];
@@ -29,13 +29,78 @@ claude mcp add peptides -- bunx searchpeptides mcp   # tool: ${tool}`}</pre>
 }
 
 /** The home page and /p/:slug: every listing, faceted. */
-export function ListingsPage({ result, stats, text, peptide = null, base = '/' }) {
+// The day the register was last read; a database loaded from the bundled snapshot has only a 1970 placeholder.
+export const syncedDay = (stats) => (stats.synced_at && !String(stats.synced_at).startsWith('1970') ? String(stats.synced_at).slice(0, 10) : null);
+
+/** Plain-words answers from the data, shown on an unfiltered peptide page and repeated as FAQPage JSON-LD. */
+function peptideFaq(peptide, offers, stats) {
+  const day = syncedDay(stats);
+  const asOf = day ? ` as of ${day}` : '';
+  const cheapest = offers.find((o) => o.unit === 'mg' && Number.isFinite(o.usd_per_mg));
+  const tested = peptide.lab_results ?? [];
+  const passed = tested.filter((r) => r.pass > 0);
+  const names = (rows) => rows.slice(0, 12).map((r) => r.vendor_name).join(', ') + (rows.length > 12 ? `, and ${rows.length - 12} more` : '');
+  const faq = [];
+  if (cheapest)
+    faq.push([
+      `What is the cheapest ${peptide.name} per mg?`,
+      `${cheapest.vendor_name}, at ${perMg(cheapest)}: ${usd(cheapest.price_usd)} for ${size(cheapest)}${asOf}. Prices are the vendor’s own, converted to USD.`,
+    ]);
+  faq.push([
+    `Which ${peptide.name} vendors passed an independent lab test?`,
+    !tested.length
+      ? `None on record: no vendor has an independent lab test for ${peptide.name} yet.`
+      : passed.length
+        ? `${passed.length} of ${tested.length} tested vendors passed at least one test: ${names(passed)}.`
+        : tested.length === 1
+          ? `None has yet: the one tested vendor, ${tested[0].vendor_name}, has only failed tests on record.`
+          : `None has yet: all ${tested.length} tested vendors (${names(tested)}) have only failed tests on record.`,
+  ]);
+  faq.push([`How many vendors sell ${peptide.name}?`, `${peptide.vendors} vendors, with ${peptide.offers} listings between them${asOf}.`]);
+  faq.push(['Where do the lab results and vendor scores come from?', "From Finnrick's independent lab testing; this site is not affiliated with Finnrick or any vendor. The methodology page explains the score, what “passed” means and how price per mg is worked out."]);
+  return faq;
+}
+
+/** BreadcrumbList on every peptide page; the listings as an ItemList of Offers and the answers as FAQPage on the plain one. */
+function peptideJsonld(peptide, result, faq) {
+  const crumbs = {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Peptides', item: `${config.siteUrl}/peptides` },
+      { '@type': 'ListItem', position: 2, name: peptide.name, item: `${config.siteUrl}/p/${peptide.slug}` },
+    ],
+  };
+  if (!faq.length) return [crumbs];
+  const offer = (o) => ({
+    '@type': 'Offer',
+    price: o.price_usd,
+    priceCurrency: 'USD',
+    ...(o.url ? { url: o.url } : {}),
+    ...(o.in_stock === true ? { availability: 'https://schema.org/InStock' } : o.in_stock === false ? { availability: 'https://schema.org/OutOfStock' } : {}),
+    seller: { '@type': 'Organization', name: o.vendor_name, url: `${config.siteUrl}/v/${o.vendor}` },
+  });
+  return [
+    crumbs,
+    {
+      '@type': 'ItemList',
+      name: `${peptide.name} listings, cheapest per mg first`,
+      numberOfItems: result.total,
+      itemListElement: result.offers.filter((o) => Number.isFinite(o.price_usd)).map((o, i) => ({ '@type': 'ListItem', position: i + 1, item: { '@type': 'Product', name: o.name ?? o.peptide, offers: offer(o) } })),
+    },
+    { '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
+  ];
+}
+
+export function ListingsPage({ result, stats, text, peptide = null, base = '/', related = [] }) {
   const f = result.query.filters;
   const searched = text || Object.keys(f).some((k) => k !== 'page');
+  // A peptide page with no filter beyond the peptide is the canonical one: it carries the answers and the structured data.
+  const plain = peptide && result.page === 1 && Object.keys(f).every((k) => k === 'peptide' || k === 'page');
+  const faq = plain ? peptideFaq(peptide, result.offers, stats) : [];
   const title = peptide ? `${peptide.name}: prices per mg and lab results` : searched ? `Peptide listings${text ? `: ${text}` : ''}` : null;
   const params = toParams(peptide ? { ...f, peptide: undefined } : f);
   return (
-    <Layout title={title} path={peptide ? `/p/${peptide.slug}` : '/'} q={peptide ? '' : text} adClaim={peptide ? '' : config.adNetworkClaim} description={peptide ? `${peptide.name} from ${peptide.vendors} vendors, ${peptide.offers} listings${Number.isFinite(peptide.min_usd_per_mg) ? ` from $${peptide.min_usd_per_mg}/mg` : ''}, with independent lab results.` : undefined}>
+    <Layout title={title} path={peptide ? `/p/${peptide.slug}` : '/'} jsonld={peptide ? peptideJsonld(peptide, result, faq) : undefined} api={peptide ? `${config.siteUrl}/api/v1/peptides/${peptide.slug}` : undefined} q={peptide ? '' : text} adClaim={peptide ? '' : config.adNetworkClaim} description={peptide ? `${peptide.name} from ${peptide.vendors} vendors, ${peptide.offers} listings${Number.isFinite(peptide.min_usd_per_mg) ? ` from $${peptide.min_usd_per_mg}/mg` : ''}, with independent lab results.` : undefined}>
       {peptide ? (
         <>
           <p class="crumbs">
@@ -123,6 +188,30 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/' }
           <Pager base={base} params={params} page={result.page} pages={result.pages} />
         </section>
       </div>
+      {faq.length ? (
+        <section class="faq">
+          <h2>{peptide.name}: quick answers</h2>
+          {faq.map(([q, a]) => (
+            <>
+              <h3>{q}</h3>
+              <p>{a}</p>
+            </>
+          ))}
+          <p class="muted small">
+            <a href="/methodology">How scores, lab results and price per mg work</a>
+          </p>
+        </section>
+      ) : null}
+      {related.length ? (
+        <p class="related">
+          Related:{' '}
+          {related.map((r) => (
+            <a class="chip link" href={`/p/${r.slug}`}>
+              {r.name}
+            </a>
+          ))}
+        </p>
+      ) : null}
     </Layout>
   );
 }
@@ -397,7 +486,7 @@ export function MessagePage({ title, message, status }) {
 export function Docs({ stats }) {
   const base = config.siteUrl;
   return (
-    <Layout title="API, CLI and MCP" path="/docs">
+    <Layout title="API, CLI and MCP" path="/docs" description="The search.peptides REST API, CLI, TUI and MCP server: the same peptide listing and vendor search as the site, with no key and no account.">
       <h1>API, CLI and MCP</h1>
       <p class="lede">The same search everywhere. No key, no account. {stats.listings.toLocaleString('en-US')} listings, {stats.vendors} vendors.</p>
       <h2>REST</h2>
@@ -425,6 +514,104 @@ bunx searchpeptides tui`}</pre>
       <p class="muted small">
         Ask the site directly: <a href="/llms.txt">llms.txt</a>, <a href="/skill.md">skill.md</a>, <a href="/.well-known/openmcp.json">openmcp.json</a>.
       </p>
+    </Layout>
+  );
+}
+
+export function MethodologyPage({ stats }) {
+  return (
+    <Layout title="How we score and price" path="/methodology" description="What the vendor score means, where the independent lab results come from, what passed means, and how price per mg is worked out on search.peptides.">
+      <div class="prose">
+        <h1>How we score and price</h1>
+        <p class="lede">
+          {config.siteName} compares research-peptide listings by price per mg and shows each vendor’s independent lab record. It is for researchers comparing vendors before they buy. It sells nothing and takes no commission.
+        </p>
+        <h2>Price per mg</h2>
+        <p>
+          Each listing’s price is the vendor’s own, converted to US dollars on the day it was read. Price per mg is that price divided by the total milligrams in the listing: the size of one vial times the number of vials in the pack. Listings sold in IU or another unit are ranked by that unit and never compared with mg. Out-of-stock listings stay in the list, marked.
+        </p>
+        <h2>Vendor score</h2>
+        <p>
+          The 0 to 100 score is <a href="https://www.finnrick.com">Finnrick</a>’s, shown as published. Finnrick is an independent service that lab-tests peptides sold by vendors and rates the vendors on the results. We do not compute, adjust or sell scores. A vendor with no Finnrick record shows as unscored.
+        </p>
+        <h2>Lab tests and “passed”</h2>
+        <p>
+          Lab test counts are Finnrick’s independent test results for that vendor. “Passed” on a listing means the vendor has at least one passing independent test for that peptide; it does not mean that exact batch or listing was tested. A peptide page lists every tested vendor with its passes, failures and latest test date. Findings from certificates of analysis come from documents the vendor publishes itself.
+        </p>
+        <h2>Contact details</h2>
+        <p>Emails, phones, WhatsApp, Telegram and socials are read from each vendor’s own website (weekly) and from Finnrick’s vendor records (every three days).</p>
+        <h2>How fresh it is</h2>
+        <p>
+          Prices and lab results are re-read every hour, and new vendors are looked for every six hours.
+          {syncedDay(stats) ? ` Last read ${String(stats.synced_at).slice(0, 16).replace('T', ' ')} UTC.` : ''} Right now: {stats.listings.toLocaleString('en-US')} listings, {stats.vendors.toLocaleString('en-US')} vendors, {stats.lab_tests.toLocaleString('en-US')} lab tests.
+        </p>
+        <h2>Sponsored listings</h2>
+        <p>
+          A vendor can pay to be pinned above matching results for {config.sponsorDays} days. It is always labelled <b>Sponsored</b> and changes nothing else: scores, lab results and the order of every other listing stay as they are.
+        </p>
+        <h2>Corrections</h2>
+        <p>
+          Wrong price, dead link, or a vendor’s details out of date? <a href={`${REPO}/issues`}>Open an issue</a>.
+        </p>
+      </div>
+    </Layout>
+  );
+}
+
+export function PrivacyPage() {
+  return (
+    <Layout title="Privacy" path="/privacy" description="What search.peptides collects: no accounts and no cookies of its own, a page-view counter, and the email a sponsor gives for a receipt.">
+      <div class="prose">
+        <h1>Privacy</h1>
+        <p class="lede">No accounts, no sign-in and no cookies set by this site. Searching the site, the API, the CLI and MCP needs nothing from you.</p>
+        <h2>Page views</h2>
+        <p>
+          Pages load a visitor counter from crawlproof.com. It keeps a random visitor id in your browser’s local storage (not a cookie) so a returning visitor is counted once, and sends the page address and referrer. The home page also carries one ad unit from crawlproof.com, which may store an id the same way. Blocking crawlproof.com in your browser stops both; the site works the same without them.
+        </p>
+        <h2>Server logs</h2>
+        <p>This server keeps no access logs of pages or API calls. If you reach it through the pit.world relay, that relay passes your request on to it.</p>
+        <h2>Sponsors</h2>
+        <p>
+          Sponsoring a vendor asks for an email for the receipt. The email, the vendor and the amount are kept to run the sponsorship and are sent to CoinPay (coinpayportal.com), which takes the payment. They are not shared with anyone else or used for marketing.
+        </p>
+        <h2>Vendor details</h2>
+        <p>
+          Contact details shown for vendors are business details each vendor publishes on its own site or on Finnrick. A vendor can ask for a correction or removal by <a href={`${REPO}/issues`}>opening an issue</a>.
+        </p>
+        <h2>Questions</h2>
+        <p>
+          <a href={`${REPO}/issues`}>Open an issue</a> on the source repository.
+        </p>
+      </div>
+    </Layout>
+  );
+}
+
+export function TermsPage() {
+  return (
+    <Layout title="Terms of use" path="/terms" description="The terms for using search.peptides: research use only, not medical advice, data as published by vendors and Finnrick, no warranty.">
+      <div class="prose">
+        <h1>Terms of use</h1>
+        <p class="lede">{config.siteName} is a free search over what research-peptide vendors publish. Using it, its API, CLI or MCP server means accepting these terms.</p>
+        <h2>Research use, not medical advice</h2>
+        <p>Nothing here is medical advice or an endorsement of any vendor or product. Listings are for research comparison only. Check the law where you are before buying anything.</p>
+        <h2>The data</h2>
+        <p>
+          Prices, stock, contact details and certificates are each vendor’s own; scores and lab results are Finnrick’s. They are shown as found, may be out of date or wrong, and come with no warranty. Check with the vendor before you buy. See <a href="/methodology">how we score and price</a>.
+        </p>
+        <h2>Vendors and links</h2>
+        <p>Links to vendors carry no affiliate or referral code. We are not party to anything you buy from a vendor.</p>
+        <h2>Sponsorships</h2>
+        <p>
+          A sponsorship is ${config.sponsorUsd} for {config.sponsorDays} days of a labelled pin above matching listings. It does not buy a better score, a lab result or any change to other listings, and it starts once the payment confirms.
+        </p>
+        <h2>Using the API</h2>
+        <p>
+          The API and MCP server are open and keyless. Keep request rates reasonable; the whole register is one call at <a href="/api/v1/export">/api/v1/export</a>. The code is MIT licensed.
+        </p>
+        <h2>Changes</h2>
+        <p>These terms can change; the version on this page is the one that applies.</p>
+      </div>
     </Layout>
   );
 }

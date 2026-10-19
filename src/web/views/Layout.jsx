@@ -8,7 +8,22 @@ import { pitFooter } from '../../pit-footer.ts';
 const CSS_VERSION = Bun.hash(readFileSync(new URL('../../../public/styles.css', import.meta.url))).toString(36);
 
 /** The one HTML shell: dark ground, phosphor accent, sticky search bar, the Moshpit ring bar on top. */
-export function Layout({ title, description, path = '/', jsonld, children, q = '', noindex = false, adClaim = '' }) {
+/** Who runs the site and how to search it, on every page; a page's own nodes join the same graph. */
+const SITE_GRAPH = () => [
+  { '@type': 'Organization', '@id': `${config.siteUrl}/#org`, name: config.siteName, url: `${config.siteUrl}/`, logo: `${config.siteUrl}/og.png`, sameAs: [REPO, 'https://nichedb.dev/c/peptides'] },
+  {
+    '@type': 'WebSite',
+    '@id': `${config.siteUrl}/#site`,
+    name: config.siteName,
+    url: `${config.siteUrl}/`,
+    publisher: { '@id': `${config.siteUrl}/#org` },
+    potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${config.siteUrl}/?text={search_term_string}` }, 'query-input': 'required name=search_term_string' },
+  },
+];
+export const REPO = 'https://github.com/moshcoder/search.peptides';
+
+export function Layout({ title, description, path = '/', jsonld, children, q = '', noindex = false, adClaim = '', api = `${config.siteUrl}/api/v1/search` }) {
+  const graph = { '@context': 'https://schema.org', '@graph': [...SITE_GRAPH(), ...[jsonld ?? []].flat().map(({ '@context': _, ...node }) => node)] };
   const full = title ? `${title} · ${config.siteName}` : `${config.siteName}: every research peptide vendor, compared`;
   const desc = description ?? 'Every research-peptide vendor and listing, compared by price per mg, independent lab results, payment and where it ships from, with each vendor’s contact details. Same search on the page, the API, the CLI and MCP.';
   const nav = [
@@ -36,21 +51,28 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="preload" href="/fonts/Geist.woff2" as="font" type="font/woff2" crossorigin="" />
         <link rel="stylesheet" href={`/styles.css?v=${CSS_VERSION}`} />
-        <link rel="alternate" type="application/json" href={`${config.siteUrl}/api/v1/search`} title="Search API" />
+        <link rel="alternate" type="application/json" href={api} title="This page as JSON" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content={config.siteName} />
         <meta property="og:title" content={full} />
         <meta property="og:description" content={desc} />
-        <meta name="twitter:card" content="summary" />
-        {jsonld ? <script type="application/ld+json">{raw(JSON.stringify(jsonld).replace(/</g, '\\u003c'))}</script> : null}
+        <meta property="og:url" content={`${config.siteUrl}${path}`} />
+        <meta property="og:image" content={`${config.siteUrl}/og.png`} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={`${config.siteName}: research-peptide prices per mg and lab results`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={`${config.siteUrl}/og.png`} />
+        <script type="application/ld+json">{raw(JSON.stringify(graph).replace(/</g, '\\u003c'))}</script>
         {config.crawlproofSite ? <script data-site={config.crawlproofSite} src="https://crawlproof.com/stats.js" async></script> : null}
       </head>
       <body>
+        <a class="skip" href="#main">Skip to content</a>
         {raw('<!--ring-bar-->')}
         <header class="top">
           <div class="wrap top-in">
-            <a class="brand" href="/">
-              <span class="logo">⌬</span> {config.siteName}
+            <a class="brand" href="/" aria-label={`${config.siteName} home`}>
+              <span class="logo" aria-hidden="true">⌬</span> {config.siteName}
             </a>
             <form class="topsearch" action="/" method="get" role="search">
               <input name="text" value={q} placeholder="bpc-157 lab tested under $1/mg" aria-label="Search peptide listings" autocomplete="off" />
@@ -64,7 +86,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             </nav>
           </div>
         </header>
-        <main class="wrap">
+        <main class="wrap" id="main" tabindex="-1">
           {siteAd ? (
             <>
               <aside class="cp-ad" data-cp-ad="" aria-label="Advertisement"></aside>
@@ -83,7 +105,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             {DISCLOSURE} {PRICE_NOTE}
           </p>
           <p>
-            © {config.siteName} · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/moshcoder/search.peptides">Source</a>
+            © {config.siteName} · <a href="/methodology">How we score and price</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
           </p>
         </footer>
         {raw(pitFooter())}
