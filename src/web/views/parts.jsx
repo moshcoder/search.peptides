@@ -45,7 +45,7 @@ export function OfferRow({ o, sponsored = false }) {
       <div class="sb-price">
         <b>{perMg(o)}</b>
         {o.url ? (
-          <a class="small" href={o.url} rel="nofollow noopener" target="_blank">
+          <a class="small" href={o.url} rel={sponsored ? 'sponsored nofollow noopener' : 'nofollow noopener'} target="_blank">
             vendor page ↗
           </a>
         ) : null}
@@ -109,10 +109,20 @@ export function ContactCard({ c }) {
 const href = (base, query) => (query ? `${base}?${query}` : base);
 
 /** The drill-down rail, the r4ck.dev/servers pattern: every option is a link with the count it leads to. */
-export function FacetRail({ facets, base, total }) {
-  const item = (o) => (
+export function FacetRail({ facets, base, total, peptidePage = false }) {
+  // On a peptide's own page the peptide lives in the path, never the query: the Peptide group
+  // switches page (/p/<other>, or / to drop it), every other group stays on this page.
+  const link = (g, o) => {
+    if (!peptidePage) return href(base, o.query);
+    const p = new URLSearchParams(o.query);
+    const slug = p.get('peptide');
+    p.delete('peptide');
+    if (g.name !== 'peptide') return href(base, p.toString());
+    return href(slug ? `/p/${encodeURIComponent(slug)}` : '/', p.toString());
+  };
+  const item = (g) => (o) => (
     <li>
-      <a class={`facet-item${o.active ? ' on' : ''}`} href={href(base, o.query)} rel="nofollow">
+      <a class={`facet-item${o.active ? ' on' : ''}`} href={link(g, o)} rel="nofollow">
         <span class="facet-check" aria-hidden="true"></span>
         <span class="facet-label">{o.label}</span>
         <span class="facet-count">{o.count}</span>
@@ -131,11 +141,11 @@ export function FacetRail({ facets, base, total }) {
         return (
           <details class="facet-group" open={g.open || g.options.some((o) => o.active)}>
             <summary>{g.label}</summary>
-            <ul>{shown.map(item)}</ul>
+            <ul>{shown.map(item(g))}</ul>
             {rest.length ? (
               <details class="facet-more">
                 <summary>Show {rest.length} more</summary>
-                <ul>{rest.map(item)}</ul>
+                <ul>{rest.map(item(g))}</ul>
               </details>
             ) : null}
           </details>

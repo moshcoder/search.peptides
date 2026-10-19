@@ -99,7 +99,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
   const title = peptide ? `${peptide.name}: prices per mg and lab results` : searched ? `Peptide listings${text ? `: ${text}` : ''}` : null;
   const params = toParams(peptide ? { ...f, peptide: undefined } : f);
   return (
-    <Layout title={title} path={peptide ? `/p/${peptide.slug}` : '/'} jsonld={peptide ? peptideJsonld(peptide, result, faq) : undefined} api={peptide ? `${config.siteUrl}/api/v1/peptides/${peptide.slug}` : undefined} q={peptide ? '' : text} adClaim={peptide ? '' : config.adNetworkClaim} description={peptide ? `${peptide.name} from ${peptide.vendors} vendors, ${peptide.offers} listings${Number.isFinite(peptide.min_usd_per_mg) ? ` from $${peptide.min_usd_per_mg}/mg` : ''}, with independent lab results.` : undefined}>
+    <Layout title={title} noindex={peptide ? Object.keys(f).some((k) => k !== 'peptide' && k !== 'page') : searched} path={peptide ? `/p/${peptide.slug}` : '/'} jsonld={peptide ? peptideJsonld(peptide, result, faq) : undefined} api={peptide ? `${config.siteUrl}/api/v1/peptides/${peptide.slug}` : undefined} q={peptide ? '' : text} adClaim={peptide ? '' : config.adNetworkClaim} description={peptide ? `${peptide.name} from ${peptide.vendors} vendors, ${peptide.offers} listings${Number.isFinite(peptide.min_usd_per_mg) ? ` from $${peptide.min_usd_per_mg}/mg` : ''}, with independent lab results.` : undefined}>
       {peptide ? (
         <>
           <p class="crumbs">
@@ -111,6 +111,11 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
             {Number.isFinite(peptide.min_usd_per_mg) ? `, from $${peptide.min_usd_per_mg}/mg` : ''}.{' '}
             {peptide.tests ? `${peptide.tests_pass} of ${peptide.tests} independent lab tests passed.` : 'No independent lab tests on record.'}
           </p>
+          {plain ? (
+            <p class="prose muted">
+              {peptide.name} is sold for research in many vial sizes and pack counts, so the listings below are ranked by US dollars per milligram rather than sticker price. A low price per mg says nothing about what is in the vial: the lab column shows whether each vendor has passed an independent test, and the <a href="/methodology">methodology</a> explains what a pass means. For research use only; not medical advice.
+            </p>
+          ) : null}
           {peptide.lab_results?.length ? (
             <details>
               <summary>Lab results by vendor ({peptide.lab_results.length})</summary>
@@ -162,7 +167,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
         </>
       )}
       <div class="results-layout">
-        <FacetRail facets={result.facets} base={base} total={result.total} />
+        <FacetRail facets={result.facets} base={base} total={result.total} peptidePage={!!peptide} />
         <section class="results">
           <ResultsHead title={`${result.total.toLocaleString('en-US')} ${result.total === 1 ? 'listing' : 'listings'}`} base={base} params={params} sorts={OFFER_SORTS} sort={['price', 'score', 'size', 'name'].includes(f.sort) ? f.sort : ''} h1={false} />
           <ActiveChips chips={peptide ? result.chips.filter((c) => c.label !== peptide.name) : result.chips} base={base} />
@@ -219,7 +224,7 @@ export function VendorsPage({ result, text }) {
   const f = result.query.filters;
   const params = toParams(f);
   return (
-    <Layout title="Peptide vendors: lab results, score, contact" path="/vendors" description={`${result.total} research-peptide vendors with independent lab pass rates, scores, payment methods, where they ship from and how to reach them.`}>
+    <Layout title="Peptide vendors: lab results, score, contact" path="/vendors" noindex={Object.keys(f).some((k) => k !== 'page')} description={`${result.total} research-peptide vendors with independent lab pass rates, scores, payment methods, where they ship from and how to reach them.`}>
       <h1>Peptide vendors</h1>
       <p class="lede">Every vendor with independent lab results or published prices, with how to reach them: email, phone, WhatsApp, Telegram and socials read from the vendor’s own site.</p>
       <form class="bigsearch" action="/vendors" method="get" role="search">
@@ -298,7 +303,7 @@ export function VendorPage({ v }) {
           </p>
         </div>
         {site ? (
-          <a class="btn primary" href={site} rel="nofollow noopener" target="_blank">
+          <a class="btn primary" href={site} rel={v.sponsored ? 'sponsored nofollow noopener' : 'nofollow noopener'} target="_blank">
             {site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')} ↗
           </a>
         ) : null}
@@ -512,6 +517,37 @@ bunx searchpeptides tui`}</pre>
       <p class="muted small">
         Ask the site directly: <a href="/llms.txt">llms.txt</a>, <a href="/skill.md">skill.md</a>, <a href="/.well-known/openmcp.json">openmcp.json</a>.
       </p>
+    </Layout>
+  );
+}
+
+export function AboutPage({ stats }) {
+  return (
+    <Layout title="About" path="/about" description="Who runs search.peptides, what it is for, how vendors get listed, and how to reach us.">
+      <div class="prose">
+        <h1>About {config.siteName}</h1>
+        <p class="lede">
+          {config.siteName} is a free, independent search over every research-peptide vendor we can find: {stats.listings.toLocaleString('en-US')} listings from {stats.vendors.toLocaleString('en-US')} vendors, ranked by price per mg, with independent lab results and each vendor’s contact details.
+        </p>
+        <h2>Who it is for</h2>
+        <p>Researchers, labs and buyers comparing research-peptide vendors before they order: who is cheapest per milligram, who has passed independent testing, how they take payment, where they ship from and how to reach them.</p>
+        <h2>Who runs it</h2>
+        <p>
+          It is built and run by <a href="https://profullstack.com">Profullstack, Inc.</a> as part of the Profullstack network. It sells nothing, takes no commission and uses no affiliate links; the only paid placement is a clearly labelled sponsored pin. The code is open source at <a href={REPO}>github.com/moshcoder/search.peptides</a>.
+        </p>
+        <h2>How vendors get listed</h2>
+        <p>
+          Vendors come in automatically from the public peptide price register and Finnrick’s vendor list, re-read every hour and every six hours. A shop that is missing, or listed wrongly, can <a href={`${REPO}/issues`}>open an issue</a>; a listed shop can also <a href="/sponsor">sponsor</a> its place.
+        </p>
+        <h2>How it works</h2>
+        <p>
+          <a href="/methodology">How we score and price</a> explains the vendor score, what “passed” means and how price per mg is worked out. Every search on the site is also a keyless <a href="/docs">API, CLI and MCP server</a>.
+        </p>
+        <h2>Contact</h2>
+        <p>
+          Corrections, vendor disputes and press: <a href={`${REPO}/issues`}>GitHub issues</a>. Security reports: <a href="/.well-known/security.txt">security.txt</a>.
+        </p>
+      </div>
     </Layout>
   );
 }

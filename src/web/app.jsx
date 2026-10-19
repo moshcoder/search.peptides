@@ -9,7 +9,7 @@ import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, PRICE_NOTE, pub
 import { payConfigured, settle, startSponsor, verifyWebhook } from '../sponsor.js';
 import { open } from '../db.js';
 import { version } from '../version.js';
-import { Docs, ListingsPage, MessagePage, MethodologyPage, PeptidesPage, PrivacyPage, SponsorPage, syncedDay, TermsPage, VendorPage, VendorsPage } from './views/pages.jsx';
+import { AboutPage, Docs, ListingsPage, MessagePage, MethodologyPage, PeptidesPage, PrivacyPage, SponsorPage, syncedDay, TermsPage, VendorPage, VendorsPage } from './views/pages.jsx';
 
 export const app = new Hono();
 const PUBLIC = resolve(new URL('../../public', import.meta.url).pathname);
@@ -49,7 +49,17 @@ app.get('/', (c) => {
 app.get('/p/:slug', (c) => {
   const peptide = getPeptide(c.req.param('slug'));
   if (!peptide) return html(c, <MessagePage title="No such peptide" message="That peptide is not in the register." />, 404);
-  const input = parse(qs(c));
+  // The peptide facet on a peptide page means "switch peptide": send it to that peptide's own page,
+  // so /p/a?peptide=b is never a duplicate of /p/a.
+  const params = qs(c);
+  const other = params.get('peptide');
+  if (other !== null) {
+    params.delete('peptide');
+    params.delete('page');
+    const rest = params.toString();
+    return c.redirect(`${other && other !== peptide.slug ? `/p/${encodeURIComponent(other)}` : `/p/${peptide.slug}`}${rest ? `?${rest}` : ''}`, 301);
+  }
+  const input = parse(params);
   input.filters.peptide = peptide.slug;
   return html(c, <ListingsPage result={searchOffers(input, { facets: true })} stats={stats()} text="" peptide={peptide} base={`/p/${peptide.slug}`} related={relatedPeptides(peptide.slug)} />);
 });
@@ -71,6 +81,7 @@ app.get('/v/:slug', (c) => {
 });
 app.get('/peptides', (c) => html(c, <PeptidesPage peptides={listPeptides().filter((p) => p.offers || p.tests)} q={c.req.query('q')} />));
 app.get('/docs', (c) => html(c, <Docs stats={stats()} />));
+app.get('/about', (c) => html(c, <AboutPage stats={stats()} />));
 app.get('/methodology', (c) => html(c, <MethodologyPage stats={stats()} />));
 app.get('/privacy', (c) => html(c, <PrivacyPage />));
 app.get('/terms', (c) => html(c, <TermsPage />));
@@ -167,7 +178,7 @@ app.options('*', (c) => c.body(null, 204, { ...CORS, 'access-control-allow-metho
 app.get('/.well-known/openmcp.json', (c) =>
   json(c, { name: config.siteName, description: 'Research-peptide vendors and listings: price per mg, independent lab results, payment, shipping and vendor contact details.', transport: 'streamable-http', url: `${config.siteUrl}/mcp`, stdio: 'bunx searchpeptides mcp', tools: TOOLS.map(({ name, description }) => ({ name, description })) }),
 );
-app.get('/llms.txt', (c) => c.text(llms(), 200, { 'content-type': 'text/plain; charset=utf-8' }));
+for (const path of ['/llms.txt', '/.well-known/llms.txt']) app.get(path, (c) => c.text(llms(), 200, { 'content-type': 'text/plain; charset=utf-8' }));
 app.get('/skill.md', (c) => c.text(skill(), 200, { 'content-type': 'text/markdown; charset=utf-8' }));
 // AI crawlers named outright, so none falls back to a default. A crawler that matches a named group
 // ignores the * group, so the group repeats the same rules.
@@ -178,7 +189,7 @@ app.get('/sitemap.xml', (c) => {
   const day = (iso) => (iso ? String(iso).slice(0, 10) : null);
   const synced = syncedDay(stats());
   const urls = [
-    ...['/', '/vendors', '/peptides', '/docs', '/methodology', '/sponsor'].map((u) => [u, synced]),
+    ...['/', '/vendors', '/peptides', '/docs', '/about', '/methodology', '/sponsor'].map((u) => [u, synced]),
     ...listPeptides().filter((p) => p.offers).map((p) => [`/p/${p.slug}`, synced]),
     ...open().query('SELECT slug, checked_at FROM vendors').all().map((v) => [`/v/${v.slug}`, day(v.checked_at) ?? synced]),
   ];

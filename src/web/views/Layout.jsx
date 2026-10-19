@@ -12,7 +12,16 @@ const JS_VERSION = assetVersion('app.js');
 /** The one HTML shell: dark ground, phosphor accent, sticky search bar, the Moshpit ring bar on top. */
 /** Who runs the site and how to search it, on every page; a page's own nodes join the same graph. */
 const SITE_GRAPH = () => [
-  { '@type': 'Organization', '@id': `${config.siteUrl}/#org`, name: config.siteName, url: `${config.siteUrl}/`, logo: `${config.siteUrl}/og.png`, sameAs: [REPO, 'https://nichedb.dev/c/peptides'] },
+  {
+    '@type': 'Organization',
+    '@id': `${config.siteUrl}/#org`,
+    name: config.siteName,
+    url: `${config.siteUrl}/`,
+    logo: `${config.siteUrl}/og.png`,
+    description: 'A free, independent search over every research-peptide vendor and listing, ranked by price per mg with independent lab results.',
+    parentOrganization: { '@type': 'Organization', name: 'Profullstack, Inc.', url: 'https://profullstack.com' },
+    sameAs: [REPO, 'https://nichedb.dev/c/peptides'],
+  },
   {
     '@type': 'WebSite',
     '@id': `${config.siteUrl}/#site`,
@@ -46,7 +55,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta name="description" content={desc} />
         <meta name="color-scheme" content="dark" />
         <meta name="theme-color" content="#0b0d12" />
-        {noindex ? <meta name="robots" content="noindex" /> : null}
+        <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
         {config.pitVerify ? <meta name="pit-verify" content={config.pitVerify} /> : null}
         {adClaim ? <meta name="ad.network" content={adClaim} /> : null}
         <link rel="canonical" href={`${config.siteUrl}${path}`} />
@@ -62,7 +71,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta property="og:image" content={`${config.siteUrl}/og.png`} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
-        <meta property="og:image:alt" content={`${config.siteName}: research-peptide prices per mg and lab results`} />
+        <meta property="og:image:alt" content={full} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content={`${config.siteUrl}/og.png`} />
         <script type="application/ld+json">{raw(JSON.stringify(graph).replace(/</g, '\\u003c'))}</script>
@@ -98,7 +107,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             {DISCLOSURE} {PRICE_NOTE}
           </p>
           <p>
-            © {config.siteName} · <a href="/methodology">How we score and price</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
+            © {config.siteName} · <a href="/about">About</a> · <a href="/methodology">How we score and price</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
           </p>
         </footer>
         <div class="consent" id="consent" role="region" aria-label="Privacy choice" hidden>
