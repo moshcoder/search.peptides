@@ -226,7 +226,8 @@ summary { cursor: pointer; }
 .ring-bar .ring-home { color: var(--accent); font-weight: 700; }
 .ring-bar .ring-sites { display: inline-flex; gap: 12px; padding: 0 12px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
 .ring-bar [aria-current='page'] { color: var(--fg); }
-@media (max-width: 640px) { .ring-bar .ring-sites, .ring-bar .ring-home span { display: none; } }
+.ring-bar .ring-start { margin-left: auto; color: var(--accent); font-weight: 700; }
+@media (max-width: 640px) { .ring-bar .ring-home span { display: none; } }
 
 /* Vendor page: one header, one strip, tight tables. */
 .vhead { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap; margin: 0.4rem 0 0.4rem; }
