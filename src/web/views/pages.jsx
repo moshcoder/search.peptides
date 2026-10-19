@@ -118,7 +118,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
           </p>
           {plain ? (
             <p class="prose muted">
-              {peptide.name} is sold for research in many vial sizes and pack counts, so the listings below are ranked by US dollars per milligram rather than sticker price. A low price per mg says nothing about what is in the vial: the lab column shows whether each vendor has passed an independent test, and the <a href="/methodology">methodology</a> explains what a pass means. For research use only; not medical advice.
+              Built for researchers comparing {peptide.name} vendors before they buy. It is sold for research in many vial sizes and pack counts, so the listings below are ranked by US dollars per milligram rather than sticker price. A low price per mg says nothing about what is in the vial: the lab column shows whether each vendor has passed an independent test, and the <a href="/methodology">methodology</a> explains what a pass means. Published research on {peptide.name}: <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(peptide.name)}`} rel="noopener" target="_blank">PubMed</a>. For research use only; not medical advice.
             </p>
           ) : null}
           {peptide.lab_results?.length ? (
@@ -150,7 +150,7 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
           <h1>{searched ? (text ? `Listings for “${text}”` : 'Peptide listings') : 'Every research peptide, every vendor, one search'}</h1>
           <p class="lede">
             {stats.listings.toLocaleString('en-US')} listings from {stats.vendors_with_prices} vendors across {stats.peptides} peptides, ranked by price per mg, with independent lab results for {stats.vendors} vendors and their contact details.
-            {searched ? null : ' For researchers comparing research-peptide vendors before they buy.'}
+            {searched ? null : ' Built for researchers comparing research-peptide vendors before they buy.'}
             {!searched && syncedDay(stats) ? (
               <>
                 {' '}
@@ -512,19 +512,6 @@ export function Docs({ stats }) {
       title="API, CLI and MCP"
       path="/docs"
       description="The search.peptides REST API, CLI, TUI and MCP server: the same peptide listing and vendor search as the site, with no key and no account."
-      jsonld={{
-        '@type': 'SoftwareApplication',
-        name: 'searchpeptides',
-        applicationCategory: 'DeveloperApplication',
-        operatingSystem: 'Linux, macOS, Windows (Bun)',
-        description: 'Keyless REST API, CLI, TUI and MCP server for research-peptide listings and vendors: price per mg, independent lab results, payment, shipping and contact details.',
-        url: `${base}/docs`,
-        downloadUrl: 'https://www.npmjs.com/package/searchpeptides',
-        softwareHelp: `${base}/llms.txt`,
-        codeRepository: REPO,
-        offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
-        publisher: { '@id': `${base}/#org` },
-      }}
     >
       <h1>API, CLI and MCP</h1>
       <p class="lede">The same search everywhere. No key, no account. {stats.listings.toLocaleString('en-US')} listings, {stats.vendors} vendors.</p>
@@ -579,10 +566,40 @@ export function AboutPage({ stats }) {
         <p>
           <a href="/methodology">How we score and price</a> explains the vendor score, what “passed” means and how price per mg is worked out. Every search on the site is also a keyless <a href="/docs">API, CLI and MCP server</a>.
         </p>
-        <h2>Contact</h2>
+        <h2 id="contact">Contact</h2>
         <p>
           Corrections, vendor disputes and press: <a href={`${REPO}/issues`}>GitHub issues</a>. Security reports: <a href="/.well-known/security.txt">security.txt</a>.
         </p>
+      </div>
+    </Layout>
+  );
+}
+
+export function ChangelogPage({ entries }) {
+  return (
+    <Layout
+      title="Changelog"
+      path="/changelog"
+      description="What changed on search.peptides, newest first: new pages, faster search, better prices and how the data is kept up to date."
+      jsonld={{
+        '@type': 'Blog',
+        name: `${config.siteName} changelog`,
+        url: `${config.siteUrl}/changelog`,
+        blogPost: entries.map((e) => ({ '@type': 'BlogPosting', headline: e.title, datePublished: e.date, articleBody: e.text, url: `${REPO}/pull/${e.pr}`, author: { '@id': `${config.siteUrl}/#org` } })),
+      }}
+    >
+      <div class="prose">
+        <h1>Changelog</h1>
+        <p class="lede">What changed on {config.siteName}, newest first. The code and every change are public on <a href={REPO}>GitHub</a>.</p>
+        {entries.map((e) => (
+          <section>
+            <h2>{e.title}</h2>
+            <p class="muted small">
+              <time datetime={e.date}>{e.date}</time> · <a href={`${REPO}/pull/${e.pr}`}>#{e.pr}</a>
+            </p>
+            <p>{e.text}</p>
+          </section>
+        ))}
       </div>
     </Layout>
   );
