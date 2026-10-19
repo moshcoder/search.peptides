@@ -124,6 +124,11 @@ function migrate(d) {
   const have = new Set(d.query('PRAGMA table_info(vendors)').all().map((c) => c.name));
   if (!have.has('origin')) d.exec("ALTER TABLE vendors ADD COLUMN origin TEXT NOT NULL DEFAULT 'register'");
   if (!have.has('status')) d.exec('ALTER TABLE vendors ADD COLUMN status TEXT');
+  // Listings come from the register or, since 2026-10-19, straight from the vendor's own shop (src/shops.js).
+  const offerCols = new Set(d.query('PRAGMA table_info(offers)').all().map((c) => c.name));
+  if (!offerCols.has('origin')) d.exec("ALTER TABLE offers ADD COLUMN origin TEXT NOT NULL DEFAULT 'register'");
+  if (!offerCols.has('checked_at')) d.exec('ALTER TABLE offers ADD COLUMN checked_at TEXT');
+  d.exec('CREATE INDEX IF NOT EXISTS offers_origin ON offers(vendor, origin)');
   // Contacts from the first crawler carry a bare source; they came from vendors' own sites, so they join that set.
   d.exec("UPDATE vendor_contacts SET source = 'site:' || coalesce(source, '') WHERE source IS NULL OR (source NOT LIKE 'site%' AND source NOT LIKE 'finnrick%')");
 }

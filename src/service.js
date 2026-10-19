@@ -87,10 +87,12 @@ function load() {
   const vendors = db.query('SELECT * FROM vendors').all().map((r) => shapeVendor(r, sponsored, contacts.get(r.slug)));
   const bySlug = new Map(vendors.map((v) => [v.slug, v]));
   const passed = new Set(db.query("SELECT DISTINCT vendor, peptide_slug FROM lab_tests WHERE result = 'pass'").all().map((r) => `${r.vendor}|${r.peptide_slug}`));
+  // A vendor whose own shop we read shows those prices, not the register's older ones.
+  const fromShop = new Set(db.query("SELECT DISTINCT vendor FROM offers WHERE origin = 'shop'").all().map((r) => r.vendor));
   const offers = db
     .query('SELECT * FROM offers')
     .all()
-    .filter((o) => bySlug.has(o.vendor))
+    .filter((o) => bySlug.has(o.vendor) && (o.origin === 'shop' || !fromShop.has(o.vendor)))
     .map((o) => {
       const v = bySlug.get(o.vendor);
       const name = o.name ?? o.peptide;
@@ -236,6 +238,9 @@ export const publicOffer = (o) => ({
   blend: o.blend,
   url: o.url,
   sponsored: o.v.sponsored,
+  // 'shop': read from the vendor's own store on checked_at; 'register': the older compiled register.
+  source: o.origin ?? 'register',
+  checked_at: o.checked_at ?? null,
 });
 
 export function searchOffers(input, opts = {}) {
