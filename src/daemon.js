@@ -3,7 +3,8 @@ import { config } from './config.js';
 import { open } from './db.js';
 import { discoverFinnrick } from './discover.js';
 import { crawlable, FINNRICK, finnrickContacts, saveContacts, siteContacts, userAgent } from './enrich.js';
-import { invalidate } from './service.js';
+import { invalidate, listPeptides } from './service.js';
+import { peptideMatcher, readShop, recomputeVendorStats, saveShopOffers } from './shops.js';
 import { sync } from './sync.js';
 
 /**
@@ -59,6 +60,8 @@ export function buildDaemon({ log } = {}) {
     timeout: '5m',
     run: async (ctx) => {
       const counts = await sync({ getJson: (url) => ctx.fetch.json(url, { signal: ctx.signal }) });
+      // The register rewrote vendor rows; the ones priced from their own shop keep those numbers.
+      recomputeVendorStats();
       changed();
       daemon.refreshItems('site-contacts');
       daemon.refreshItems('finnrick-contacts');
@@ -119,6 +122,34 @@ export function buildDaemon({ log } = {}) {
       const found = await siteContacts(fresh, ctx.fetch);
       if (saveContacts(item.key, 'site', found)) changed();
       return { contacts: found.length };
+    },
+  });
+
+  // Prices from each vendor's own shop (WooCommerce Store API or Shopify products.json; see src/shops.js).
+  // The peptide names come from what the site already knows, re-read with the items.
+  let match = null;
+  daemon.queue({
+    name: 'shop-prices',
+    every: process.env.SHOP_EVERY ?? '1d',
+    concurrency: 4,
+    retireAfter: 10,
+    itemsEvery: '30m',
+    items: async () => {
+      match = peptideMatcher(listPeptides().map((p) => p.name));
+      return vendorsFor('').map((v) => {
+        const home = crawlable(v);
+        return { key: v.slug, url: home?.origin ?? null };
+      }).filter((x) => x.url);
+    },
+    host: (item) => new URL(item.url).host,
+    run: async (item, ctx) => {
+      match ??= peptideMatcher(listPeptides().map((p) => p.name));
+      const r = await readShop(ctx.fetch, item.key, item.url, match);
+      // No public catalogue feed: an answer, asked again in a month.
+      if (!r.platform) return { platform: null, nextIn: '30d' };
+      saveShopOffers(item.key, r.listings);
+      changed();
+      return { platform: r.platform, items: r.items, listings: r.listings.length };
     },
   });
 

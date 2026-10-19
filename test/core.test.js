@@ -256,3 +256,47 @@ describe('the export', () => {
     expect(searchVendors({ filters: {}, understood: [], text: '' }, { all: true }).vendors.length).toBe(all);
   });
 });
+
+describe('prices from vendor shops', () => {
+  test('reads sizes: single, blend, micrograms, packs', async () => {
+    const { readAmount } = await import('../src/shops.js');
+    expect(readAmount('Dosage: 10 MG')).toEqual({ amount: 10, unit: 'mg', pack: 1, parts: 1 });
+    expect(readAmount('Dosage: 5 MG / 5 MG')).toEqual({ amount: 10, unit: 'mg', pack: 1, parts: 2 });
+    expect(readAmount('Thymosin 500mcg')).toEqual({ amount: 0.5, unit: 'mg', pack: 1, parts: 1 });
+    expect(readAmount('BPC-157 10mg x 10 vials')).toMatchObject({ amount: 10, pack: 10 });
+    expect(readAmount('HGH 10IU')).toMatchObject({ amount: 10, unit: 'iu' });
+    expect(readAmount('Lab coat, size L')).toBeNull();
+  });
+
+  test('matches the longest known peptide, prices per mg in USD, skips what is not a peptide', async () => {
+    const { peptideMatcher, toOffer, shopOfferId } = await import('../src/shops.js');
+    const match = peptideMatcher(['BPC-157', 'TB-500', 'BPC-157 + TB-500', 'NAD+', 'Tirzepatide']);
+    expect(match('BPC-157 + TB-500 Blend').name).toBe('BPC-157 + TB-500');
+    expect(match('NAD+ 500mg').name).toBe('NAD+');
+    expect(match('Gift card')).toBeNull();
+    const o = toOffer({ vendor: 'acme', id: 9, name: 'TIRZEPATIDE', label: 'Dosage: 30 MG', price: 150, currency: 'EUR', inStock: true, url: 'https://acme.example/p/t', match });
+    expect(o).toMatchObject({ peptide: 'Tirzepatide', peptide_slug: 'tirzepatide', amount: 30, unit: 'mg', price: 150, currency: 'EUR', price_usd: 162, usd_per_mg: 5.4, in_stock: 1, name: 'TIRZEPATIDE 30 MG' });
+    expect(toOffer({ vendor: 'acme', id: 10, name: 'Merch hoodie', price: 40, currency: 'USD', match })).toBeNull();
+    expect(toOffer({ vendor: 'acme', id: 11, name: 'Tirzepatide', price: 40, currency: 'USD', match })).toBeNull();
+    expect(shopOfferId('acme', 9)).toBe(shopOfferId('acme', 9));
+    expect(shopOfferId('acme', 9)).toBeGreaterThan(2_999_999_999);
+    expect(shopOfferId('acme', 9)).not.toBe(shopOfferId('zen', 9));
+  });
+
+  test('a vendor with shop listings shows those, its stats follow, and a register sync leaves them alone', async () => {
+    const { saveShopOffers, peptideMatcher, toOffer, shopOfferId } = await import('../src/shops.js');
+    open().exec('DELETE FROM vendors');
+    loadSnapshotIfEmpty();
+    const slug = open().query("SELECT vendor FROM offers WHERE origin = 'register' GROUP BY vendor HAVING count(*) > 3 LIMIT 1").get().vendor;
+    const match = peptideMatcher(['Retatrutide']);
+    const offers = [toOffer({ vendor: slug, id: shopOfferId(slug, 'r10'), name: 'Retatrutide', label: 'Size: 10 MG', price: 70, currency: 'USD', inStock: true, url: 'https://shop.example/r', match })];
+    expect(saveShopOffers(slug, offers)).toBe(1);
+    invalidate();
+    const v = getVendor(slug);
+    expect(v.listings.map((l) => l.source)).toEqual(['shop']);
+    expect(v.offers).toBe(1);
+    expect(v.min_usd_per_mg).toBe(7);
+    write(transform(DOC), { force: true });
+    expect(open().query("SELECT count(*) n FROM offers WHERE vendor = ? AND origin = 'shop'").get(slug).n).toBe(1);
+  });
+});

@@ -161,7 +161,7 @@ export function write(rows, { force = false } = {}) {
   const val = (v) => (v !== null && typeof v === 'object' ? J(v) : v ?? null);
   db.transaction(() => {
     // Vendors discovery added (origin 'finnrick') stay; everything the register owns is replaced.
-    db.exec("DELETE FROM vendors WHERE origin = 'register'; DELETE FROM offers; DELETE FROM lab_tests; DELETE FROM ratings;");
+    db.exec("DELETE FROM vendors WHERE origin = 'register'; DELETE FROM offers WHERE origin = 'register'; DELETE FROM lab_tests; DELETE FROM ratings;");
     for (const v of rows.vendors) addV.run(...vcols.map((k) => val(v[k])));
     for (const o of rows.offers) addO.run(...ocols.map((k) => val(o[k])));
     for (const t of rows.tests) addT.run(t.vendor, t.peptide, t.peptide_slug, t.tested_on, t.result);
