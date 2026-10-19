@@ -67,6 +67,22 @@ export function readAmount(text, { blend = false } = {}) {
   return { amount: parts[0].amount, unit: parts[0].unit, pack, parts: 1 };
 }
 
+/**
+ * The vial size from a product name and its variation label. The label (the variation's own
+ * size) wins, except when it is the name's size times a pack: "Glutathione 1500mg" with
+ * "7500mg (5vials)" is five 1500 mg vials, not one 7500 mg vial. Pure.
+ */
+export function sizeOf(name, label, blend = false) {
+  const fromLabel = label ? readAmount(label, { blend }) : null;
+  const fromName = readAmount(name, { blend });
+  if (fromLabel && fromName && fromLabel.unit === fromName.unit && fromName.amount > 0) {
+    const ratio = fromLabel.amount / fromName.amount;
+    const n = Math.round(ratio);
+    if (n >= 2 && Math.abs(ratio - n) < 0.01 && (n === fromLabel.pack || /vial|pcs|kit|box|pack/i.test(label))) return { ...fromName, pack: n };
+  }
+  return fromLabel ?? fromName;
+}
+
 /** One shop product (or variation) → a listing row, or null when it is not a peptide we can price. Pure. */
 // Shop supplies that mention a peptide (an insulin syringe) or a size (a 30G needle) are not listings.
 const SUPPLIES = /\b(?:syringes?|needles?|swabs?|alcohol (?:prep )?pads?|empty vials?|sharps|lancets?|pen needles?|gauge)\b/i;
@@ -75,8 +91,9 @@ export function toOffer({ vendor, id, name, label, price, currency, inStock, url
   if (SUPPLIES.test(`${name} ${label ?? ''}`)) return null;
   const pep = match(`${name} ${label ?? ''}`);
   if (!pep) return null;
-  // Read the label first (the variation's own size), then the name; a blend's amounts add up.
-  const amt = readAmount(`${label ?? ''} ${name}`, { blend: /\+|\/|blend/i.test(pep.name) });
+  // A blend's amounts add up: "BPC-157 + TB-500", "CJC/Ipamorelin", "... Blend" (not NAD+).
+  const blend = /\s\+\s|\/|\bblend\b/i.test(pep.name);
+  const amt = sizeOf(name, label, blend);
   const p = Number(price);
   if (!amt || !Number.isFinite(p) || p <= 0) return null;
   const cur = String(currency ?? 'USD').toUpperCase();
