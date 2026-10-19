@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import { cleanUrl, countries, paymentClasses } from '../src/core/normalize.js';
 import { readText, toParams } from '../src/core/parse.js';
-import { contactsIn, emailsIn, normalizeContact, robotsAllows, socialKind, whatsappNumber } from '../src/enrich.js';
+import { robotsAllows } from '@profullstack/scraper-daemon';
+import { finnrickRows, saveDiscovered } from '../src/discover.js';
+import { contactsIn, emailsIn, finnrickToContacts, normalizeContact, saveContacts, socialKind, whatsappNumber } from '../src/enrich.js';
 import { open } from '../src/db.js';
 import { getVendor, invalidate, parse, searchOffers, searchVendors } from '../src/service.js';
 import { settle, verifyWebhook } from '../src/sponsor.js';
@@ -181,5 +183,62 @@ describe('sponsor', () => {
     expect(settle({ data: { payment_id: 'pay_1', status: 'confirmed' } }, now).already).toBe('pay_1');
     expect(settle({ data: { payment_id: 'pay_2', status: 'confirmed' } }, now).until).toBe('2026-12-18T00:00:00.000Z');
     expect(settle({ data: { payment_id: 'nope', status: 'confirmed' } }, now).ignored).toMatch(/unknown/);
+  });
+});
+
+describe('discovery and the daemon’s writers', () => {
+  test('Finnrick’s list adds the vendors the register lacks, and a register sync keeps them', () => {
+    open().exec('DELETE FROM vendors');
+    loadSnapshotIfEmpty();
+    const known = open().query("SELECT slug FROM vendors WHERE origin = 'register' LIMIT 1").get().slug;
+    const rows = finnrickRows({
+      items: [
+        { slug: known, name: 'Renamed Upstream', status: 'Trading', test_count: 99 },
+        { slug: 'brand-new-labs', name: 'Brand New Labs', contact_url: 'https://brandnew.example/', contact_kind: 'website', location: 'China', test_count: 3, status: 'Trading' },
+        { slug: 'mail-only', name: 'Mail Only', contact_url: 'mailto:x@y.example', contact_kind: 'email' },
+      ],
+    });
+    expect(rows.find((r) => r.slug === 'mail-only').website).toBeNull();
+    expect(saveDiscovered(rows)).toBe(2);
+    const fresh = open().query('SELECT name, origin, status, website, country FROM vendors WHERE slug = ?');
+    expect(fresh.get('brand-new-labs')).toEqual({ name: 'Brand New Labs', origin: 'finnrick', status: 'Trading', website: 'https://brandnew.example/', country: 'CN' });
+    // A register vendor keeps its own name; only its trading status is taken.
+    expect(fresh.get(known).origin).toBe('register');
+    expect(fresh.get(known).name).not.toBe('Renamed Upstream');
+    expect(fresh.get(known).status).toBe('Trading');
+    // A register sync replaces only what the register owns.
+    write(transform(DOC), { force: true });
+    expect(fresh.get('brand-new-labs').origin).toBe('finnrick');
+  });
+
+  test('Finnrick contacts: vouched or confident only, emails and socials sorted out', () => {
+    const found = finnrickToContacts({
+      contact_url: 'https://shop.example/',
+      contacts: [
+        { kind: 'email', value: 'sales@shop.example', vouched: true },
+        { kind: 'email', value: 'guess@shop.example', confidence: 0.3 },
+        { kind: 'website', url: 'https://t.me/shopchannel', confidence: 0.9 },
+        { kind: 'website', url: 'https://wa.me/15550109999', vouched: true },
+      ],
+    });
+    expect(found).toEqual([
+      { kind: 'email', value: 'sales@shop.example' },
+      { kind: 'telegram', value: 'https://t.me/shopchannel' },
+      { kind: 'whatsapp', value: 'https://wa.me/15550109999' },
+      { kind: 'phone', value: '+15550109999' },
+      { kind: 'website', value: 'https://shop.example/' },
+    ]);
+  });
+
+  test('each origin’s contacts are replaced on their own', () => {
+    const slug = open().query('SELECT slug FROM vendors LIMIT 1').get().slug;
+    saveContacts(slug, 'finnrick', [{ kind: 'email', value: 'a@vendor.example' }]);
+    saveContacts(slug, 'site', [{ kind: 'email', value: 'b@vendor.example', source: 'https://vendor.example/contact' }]);
+    saveContacts(slug, 'site', [{ kind: 'phone', value: '+15550100000', source: 'https://vendor.example/' }]);
+    const rows = open().query('SELECT kind, value FROM vendor_contacts WHERE vendor = ? ORDER BY value').all(slug);
+    expect(rows).toEqual([
+      { kind: 'phone', value: '+15550100000' },
+      { kind: 'email', value: 'a@vendor.example' },
+    ]);
   });
 });

@@ -13,8 +13,16 @@ Scores and test counts come from Finnrick's independent lab testing; COA finding
 
 ## Data
 
-- `src/sync.js` reads the public register (`SOURCE_URL`, daily), decodes its column-packed listings, strips referral parameters and the source's own coupon codes, and replaces the tables in one transaction. A document with under half the vendors already held is refused. `data/snapshot.json.gz` seeds a fresh install offline.
-- `src/enrich.js` reads each vendor's own site (homepage, contact and about pages; robots.txt honoured; public addresses only, every redirect re-checked) for emails, phones and social accounts. Weekly; `bun src/enrich.js [--vendor slug]` by hand.
+Kept fresh by the updater daemon, [`@profullstack/scraper-daemon`](https://github.com/profullstack/scraper-daemon) (the same package ch4nnels.com, r4ck.dev, rssamplifier.com and p0dcasters.com run), in `src/daemon.js`, as the `worker` role of the one process. State lives in the same SQLite file; `/api/v1/daemon` shows it.
+
+| task | kind | every | what |
+| --- | --- | --- | --- |
+| `register` | job | 1 h | the public price/lab register: column-packed listings decoded, referral parameters and the source's own coupon codes stripped, register rows replaced in one transaction (a document under half the size held is refused) |
+| `discover` | job | 6 h | Finnrick's public vendor list: vendors the register lacks are added (origin `finnrick`); register syncs never remove them |
+| `finnrick-contacts` | queue | 3 d per vendor | each vendor's Finnrick record: the emails and websites it vouches for |
+| `site-contacts` | queue | 7 d per vendor | each vendor's own site (homepage, contact and about pages) for emails, phones and socials |
+
+Fetching goes through the package: robots.txt, one request at a time per host, public addresses only, every redirect re-checked, 429 holds the host. `peptides daemon run <task> [vendor]` runs one task by hand; `data/snapshot.json.gz` seeds a fresh install offline.
 
 ## Run
 

@@ -1,38 +1,19 @@
 import { config } from './config.js';
-import { close, getMeta } from './db.js';
-import { enrich } from './enrich.js';
+import { close } from './db.js';
+import { buildDaemon } from './daemon.js';
 import { startRingRefresh } from './ring.ts';
-import { invalidate } from './service.js';
-import { loadSnapshotIfEmpty, sync } from './sync.js';
-import { app } from './web/app.jsx';
+import { loadSnapshotIfEmpty } from './sync.js';
+import { app, setDaemon } from './web/app.jsx';
 
-/** One process. ROLES decides what runs: web, worker, or both. */
+/** One process. ROLES decides what runs: web, worker (the updater daemon), or both. */
 const loaded = loadSnapshotIfEmpty();
 if (loaded) console.log(`[boot] loaded the register snapshot: ${loaded.vendors} vendors, ${loaded.offers} listings`);
 
 const stopRing = startRingRefresh();
-let timer = null;
+let daemon = null;
 if (config.roles.includes('worker')) {
-  const older = (key, hours) => Date.now() - (Date.parse(getMeta(key) ?? 0) || 0) > hours * 3600_000;
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      if (older('synced_at', config.syncHours)) {
-        await sync();
-        invalidate();
-      }
-      // Vendor sites change slowly: contacts are re-read weekly, after a sync has added any new vendor.
-      if (older('enriched_at', Number(process.env.ENRICH_DAYS ?? 7) * 24)) await enrich();
-    } catch (err) {
-      console.error(`[worker] ${err.message}`);
-    } finally {
-      running = false;
-    }
-  };
-  timer = setInterval(tick, 15 * 60_000);
-  setTimeout(tick, 5_000);
+  daemon = buildDaemon().start();
+  setDaemon(daemon);
 }
 
 let server = null;
@@ -41,11 +22,11 @@ if (config.roles.includes('web')) {
   console.log(`[web] ${config.siteName} on 127.0.0.1:${config.port} at ${config.siteUrl} (${config.roles.join(',')})`);
 }
 
-function shutdown(signal) {
+async function shutdown(signal) {
   console.log(`[boot] ${signal}`);
-  clearInterval(timer);
   stopRing();
   server?.stop(true);
+  await daemon?.stop({ graceMs: 5_000 });
   close();
   process.exit(0);
 }

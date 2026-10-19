@@ -56,7 +56,9 @@ function migrate(d) {
       offers INTEGER NOT NULL DEFAULT 0,
       peptides INTEGER NOT NULL DEFAULT 0,
       min_usd_per_mg REAL,
-      checked_at TEXT
+      checked_at TEXT,
+      origin TEXT NOT NULL DEFAULT 'register',
+      status TEXT
     );
     CREATE TABLE IF NOT EXISTS offers (
       id INTEGER PRIMARY KEY,
@@ -118,6 +120,12 @@ function migrate(d) {
     );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
   `);
+  // Columns added after the first release: a database made before them gets them here.
+  const have = new Set(d.query('PRAGMA table_info(vendors)').all().map((c) => c.name));
+  if (!have.has('origin')) d.exec("ALTER TABLE vendors ADD COLUMN origin TEXT NOT NULL DEFAULT 'register'");
+  if (!have.has('status')) d.exec('ALTER TABLE vendors ADD COLUMN status TEXT');
+  // Contacts from the first crawler carry a bare source; they came from vendors' own sites, so they join that set.
+  d.exec("UPDATE vendor_contacts SET source = 'site:' || coalesce(source, '') WHERE source IS NULL OR (source NOT LIKE 'site%' AND source NOT LIKE 'finnrick%')");
 }
 
 export function getMeta(key) {

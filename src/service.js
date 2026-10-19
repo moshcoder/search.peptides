@@ -70,6 +70,9 @@ function shapeVendor(r, sponsored, contactRows) {
     min_usd_per_mg: r.min_usd_per_mg,
     checked_at: r.checked_at,
     sponsored: sponsored.has(r.slug),
+    // 'register' (prices and lab results) or 'finnrick' (found by discovery; lab counts and contacts only).
+    origin: r.origin ?? 'register',
+    status: r.status ?? null,
     page: `${config.siteUrl}/v/${r.slug}`,
   };
 }
