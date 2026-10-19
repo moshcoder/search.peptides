@@ -1,8 +1,9 @@
+import { raw } from 'hono/html';
 import { config } from '../../config.js';
 import { countryName, PAYMENT_LABELS } from '../../core/normalize.js';
 import { toParams } from '../../core/parse.js';
 import { Layout } from './Layout.jsx';
-import { ActiveChips, Chips, ContactCard, FacetRail, ORDERING, OfferRow, Pager, passText, perMg, ResultsHead, scoreText, size, usd, VendorRow } from './parts.jsx';
+import { ActiveChips, Chips, FacetRail, ORDERING, OfferRow, Pager, passText, perMg, ResultsHead, scoreText, size, usd, VendorRow } from './parts.jsx';
 
 const OFFER_SORTS = [['', 'Cheapest per mg'], ['price', 'Lowest price'], ['score', 'Best vendor score'], ['size', 'Largest size'], ['name', 'Peptide A–Z']];
 const VENDOR_SORTS = [['', 'Best score'], ['pass_rate', 'Lab pass rate'], ['tests', 'Most lab tests'], ['per_mg', 'Cheapest per mg'], ['listings', 'Most listings'], ['name', 'Name']];
@@ -169,109 +170,144 @@ export function VendorPage({ v }) {
     sameAs: Object.values(v.contact.socials).flat(),
   };
   const shipping = v.shipping.filter((s) => s && (s.to || s.cost !== null));
+  const site = v.contact.websites[0];
+  const otherContacts = [
+    ...v.contact.websites.slice(1).map((w) => [w, w.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')]),
+    ...v.contact.emails.map((e) => [`mailto:${e}`, e]),
+    ...v.contact.phones.map((p) => [`tel:${p}`, p]),
+    ...Object.values(v.contact.socials).flat().map((u) => [u, u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')]),
+  ];
+  const shipText = shipping.map((s) => `${s.to ?? 'anywhere'} ${Number.isFinite(s.cost) ? (s.cost === 0 ? 'free' : usd(s.cost)) : ''}${s.free_over ? `, free over ${usd(s.free_over)}` : ''}${s.days ? `, ${s.days}${/day/i.test(String(s.days)) ? '' : ' days'}` : ''}`.trim()).join(' · ');
+  const tests = Object.values(
+    v.lab_tests.reduce((acc, t) => {
+      const g = (acc[t.peptide_slug] ??= { peptide: t.peptide, slug: t.peptide_slug, pass: 0, fail: 0, latest: null });
+      if (t.result === 'pass') g.pass++;
+      else if (t.result === 'fail') g.fail++;
+      if (t.tested_on && (!g.latest || t.tested_on > g.latest)) g.latest = t.tested_on;
+      return acc;
+    }, {}),
+  );
+  const listings = [...v.listings].sort((a, b) => (a.peptide ?? '').localeCompare(b.peptide ?? '') || (a.total_mg ?? 0) - (b.total_mg ?? 0) || (a.price_usd ?? 0) - (b.price_usd ?? 0));
+  const notes = [v.terms_source, v.ordering_evidence, v.notes].filter(Boolean);
   return (
     <Layout title={`${v.name}: lab results, prices, contact`} path={`/v/${v.slug}`} jsonld={jsonld} description={`${v.name}: ${passText(v)}, score ${scoreText(v)}, ${v.offers} listings. Email, phone and socials, payment methods and shipping.`}>
       <p class="crumbs">
         <a href="/vendors">Vendors</a> / {v.name}
       </p>
-      <h1>
-        {v.name} {v.sponsored ? <span class="tag">Sponsored</span> : null}
-      </h1>
-      <dl class="facts">
-        <div><dt>Score</dt><dd>{scoreText(v)}</dd></div>
-        <div><dt>Lab tests</dt><dd>{passText(v)}{v.latest_test ? <span class="muted small"> · latest {v.latest_test}</span> : null}</dd></div>
-        <div><dt>Listings</dt><dd>{v.offers ? `${v.offers} across ${v.peptides} peptides` : 'no published prices'}</dd></div>
+      <header class="vhead">
+        <div>
+          <h1>
+            {v.name} {v.sponsored ? <span class="tag">Sponsored</span> : null}
+          </h1>
+          <p class="vbadges">
+            <span class="chip strong">{scoreText(v)}</span>
+            <span class={`chip ${v.tests_fail ? 'bad' : v.tests ? 'good' : ''}`}>{v.tests ? `${v.tests_pass}/${v.tests} lab tests passed` : 'no lab tests'}</span>
+            {ORDERING[v.ordering] ? <span class="chip">{ORDERING[v.ordering]}</span> : null}
+            {v.ships_from.length ? <span class="chip">from {v.ships_from.map(countryName).join(', ')}</span> : null}
+          </p>
+        </div>
+        {site ? (
+          <a class="btn primary" href={site} rel="nofollow noopener" target="_blank">
+            {site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')} ↗
+          </a>
+        ) : null}
+      </header>
+      {otherContacts.length ? (
+        <p class="vcontact muted small">
+          Also:{' '}
+          {otherContacts.map(([href, text], i) => (
+            <>
+              {i ? ' · ' : ''}
+              <a href={href} rel="nofollow noopener" target="_blank">{text}</a>
+            </>
+          ))}
+        </p>
+      ) : !site ? <p class="muted small">No contact details found on the vendor’s own pages.</p> : null}
+      <dl class="strip">
+        <div><dt>Listings</dt><dd>{v.offers ? `${v.offers} · ${v.peptides} peptides` : 'none published'}</dd></div>
         <div><dt>Cheapest</dt><dd>{Number.isFinite(v.min_usd_per_mg) ? `$${v.min_usd_per_mg}/mg` : '—'}</dd></div>
-        <div><dt>Ships from</dt><dd>{v.ships_from.map(countryName).join(', ') || v.location || '—'}</dd></div>
         <div><dt>Ships to</dt><dd>{v.ships_to ?? '—'}</dd></div>
-        <div><dt>Ordering</dt><dd>{ORDERING[v.ordering] ?? '—'}</dd></div>
+        <div><dt>Shipping</dt><dd>{shipText || '—'}</dd></div>
         <div><dt>Pay with</dt><dd>{v.payments_raw.join(', ') || '—'}</dd></div>
-        {v.min_order ? <div><dt>Minimum order</dt><dd>{v.min_order}</dd></div> : null}
+        {v.min_order ? <div><dt>Minimum</dt><dd>{v.min_order}</dd></div> : null}
       </dl>
-      <h2>Contact</h2>
-      <ContactCard c={v.contact} />
       {v.coupons.length || v.discounts.length ? (
-        <>
-          <h2>Coupons and discounts</h2>
-          <ul>
-            {v.coupons.map((c) => (
-              <li>
-                <b class="mono">{c.code ?? '—'}</b> {c.discount ?? ''} {c.conditions ? <span class="muted">({c.conditions})</span> : null}
-              </li>
-            ))}
-            {v.discounts.map((d) => (
-              <li>
-                {d.method}: {d.pct ? `${d.pct}% off` : d.flat ? `$${d.flat} off` : ''}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {shipping.length ? (
-        <>
-          <h2>Shipping</h2>
-          <ul>
-            {shipping.map((s) => (
-              <li>
-                {s.to ?? 'anywhere'}: {s.method ?? ''} {Number.isFinite(s.cost) ? usd(s.cost) : ''} {s.free_over ? `· free over ${usd(s.free_over)}` : ''} {s.days ? `· ${s.days}${/day/i.test(String(s.days)) ? '' : ' days'}` : ''}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {v.ordering_evidence || v.notes ? (
-        <p class="notes">
-          {v.ordering_evidence}
-          {v.ordering_evidence && v.notes ? ' ' : ''}
-          {v.notes}
+        <p class="vbadges">
+          {v.coupons.map((c) => (
+            <span class="chip">
+              <b class="mono">{c.code ?? '—'}</b> {c.discount ?? ''} {c.conditions ? `(${c.conditions})` : ''}
+            </span>
+          ))}
+          {v.discounts.map((d) => (
+            <span class="chip">
+              {d.method}: {d.pct ? `${d.pct}% off` : d.flat ? `$${d.flat} off` : ''}
+            </span>
+          ))}
         </p>
       ) : null}
-      {v.lab_tests.length ? (
-        <>
+      {tests.length ? (
+        <section class="vsec">
           <h2>Independent lab tests</h2>
-          <div class="scroll">
-            <table class="tbl">
-              <thead>
-                <tr><th>Peptide</th><th>Result</th><th>Tested</th></tr>
-              </thead>
-              <tbody>
-                {v.lab_tests.map((t) => (
-                  <tr>
-                    <td><a href={`/p/${t.peptide_slug}`}>{t.peptide}</a></td>
-                    <td>{t.result === 'pass' ? '✓ pass' : t.result === 'fail' ? '✗ fail' : t.result}</td>
-                    <td>{t.tested_on ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+          <table class="tbl tight fit">
+            <thead>
+              <tr><th>Peptide</th><th>Result</th><th>Latest</th></tr>
+            </thead>
+            <tbody>
+              {tests.map((t) => (
+                <tr>
+                  <td><a href={`/p/${t.slug}`}>{t.peptide}</a></td>
+                  <td>{t.pass ? <span class="ok">✓ {t.pass} passed</span> : null}{t.pass && t.fail ? ' · ' : ''}{t.fail ? <span class="no">✗ {t.fail} failed</span> : null}</td>
+                  <td class="mono">{t.latest ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       ) : null}
-      {v.listings.length ? (
-        <>
-          <h2>Listings</h2>
+      {listings.length ? (
+        <section class="vsec">
+          <div class="vsec-head">
+            <h2>Listings <span class="muted small">{listings.length}</span></h2>
+            <input id="vfilter" type="search" placeholder="Filter, e.g. bpc or 10mg" aria-label="Filter listings" autocomplete="off" />
+          </div>
           <div class="scroll">
-            <table class="tbl">
+            <table class="tbl tight" id="vlist">
               <thead>
-                <tr><th>Product</th><th>Size</th><th>Price</th><th>Per mg</th><th>Stock</th></tr>
+                <tr><th>Peptide</th><th>Size</th><th class="num">Price</th><th class="num">Per mg</th><th class="stock" title="In stock">Stock</th></tr>
               </thead>
               <tbody>
-                {v.listings.map((o) => (
-                  <tr>
-                    <td>{o.url ? <a href={o.url} rel="nofollow noopener" target="_blank">{o.name ?? o.peptide}</a> : (o.name ?? o.peptide)}</td>
-                    <td>{size(o)}</td>
-                    <td class="mono">{usd(o.price_usd)}</td>
-                    <td class="mono">{perMg(o)}</td>
-                    <td>{o.in_stock === true ? 'yes' : o.in_stock === false ? 'no' : '—'}</td>
+                {listings.map((o) => (
+                  <tr class={o.in_stock === false ? 'out' : ''} data-q={`${o.peptide ?? ''} ${o.name ?? ''} ${size(o)}`.toLowerCase()}>
+                    <td>
+                      {o.peptide_slug ? <a href={`/p/${o.peptide_slug}`}>{o.peptide}</a> : o.peptide}
+                      {o.url ? (
+                        <a class="ext" href={o.url} rel="nofollow noopener" target="_blank" title={o.name ?? ''}>
+                          ↗
+                        </a>
+                      ) : null}
+                    </td>
+                    <td class="mono">{size(o)}</td>
+                    <td class="mono num">{usd(o.price_usd)}</td>
+                    <td class="mono num">{perMg(o)}</td>
+                    <td class="stock">{o.in_stock === true ? <span class="ok" title="In stock">●</span> : o.in_stock === false ? <span class="muted" title="Out of stock">✕</span> : <span class="muted" title="Unknown">–</span>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </>
+          <script>{raw(`(()=>{const i=document.getElementById('vfilter'),rows=[...document.querySelectorAll('#vlist tbody tr')];i.addEventListener('input',()=>{const w=i.value.toLowerCase().split(/\\s+/).filter(Boolean);for(const r of rows)r.hidden=!w.every(x=>r.dataset.q.includes(x))})})()`)}</script>
+        </section>
+      ) : null}
+      {notes.length ? (
+        <details class="vnotes">
+          <summary>How we read this shop</summary>
+          {notes.map((n) => (
+            <p>{n}</p>
+          ))}
+        </details>
       ) : null}
       <p class="muted small">
-        Checked {v.checked_at ?? 'unknown'}. JSON: <a href={`/api/v1/vendors/${v.slug}`}>/api/v1/vendors/{v.slug}</a>. Is this your shop? <a href={`/sponsor?vendor=${v.slug}`}>Sponsor it</a> to be pinned, labelled, above matching listings.
+        Checked {v.checked_at ? v.checked_at.slice(0, 10) : 'unknown'} · <a href={`/api/v1/vendors/${v.slug}`}>JSON</a> · Is this your shop? <a href={`/sponsor?vendor=${v.slug}`}>Sponsor it</a> to be pinned above matching listings.
       </p>
     </Layout>
   );
