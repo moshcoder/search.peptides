@@ -242,3 +242,17 @@ describe('discovery and the daemon’s writers', () => {
     ]);
   });
 });
+
+describe('a source that stops serving its register', () => {
+  test('a decoy document is refused by name and nothing is written', () => {
+    const decoy = { synthetic_cache_test: true, notice: 'Synthetic random data for HTTP cache testing.', records: [{ id: 'cache-test-001' }] };
+    expect(() => transform(decoy)).toThrow(/served no register: "Synthetic random data/);
+  });
+});
+
+describe('the export', () => {
+  test('carries every vendor, not one page of them', () => {
+    const all = open().query('SELECT count(*) n FROM vendors').get().n;
+    expect(searchVendors({ filters: {}, understood: [], text: '' }, { all: true }).vendors.length).toBe(all);
+  });
+});

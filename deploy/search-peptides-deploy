@@ -12,4 +12,6 @@ git fetch -q origin main
 git merge-base --is-ancestor "$sha" origin/main || { echo "search-peptides-deploy: $sha is not on origin/main" >&2; exit 3; }
 git checkout -q main && git merge -q --ff-only "$sha"
 echo "search-peptides-deploy: at $(git log --oneline -1)"
+# The daemon's Redis first: the app connects to it on boot.
+bash ./deploy/redis.sh
 exec ./bin/install.sh

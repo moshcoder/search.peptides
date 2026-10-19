@@ -41,7 +41,10 @@ const vendorsFor = (where) => open().query(`SELECT slug, name, website, shop_url
 export function buildDaemon({ log } = {}) {
   const daemon = createDaemon({
     name: config.siteName,
-    store: sqliteStore(open()),
+    // BullMQ on the site's own Redis (deploy/redis.sh): queue, run records and task state live there,
+    // the listings stay in this site's SQLite. Without REDIS_URL (dev) the local engine runs.
+    redis: process.env.REDIS_URL || null,
+    store: process.env.REDIS_URL ? undefined : sqliteStore(open()),
     concurrency: Number(process.env.DAEMON_CONCURRENCY ?? 6),
     // The register document is ~5 MB; contact pages are capped well below that by the cap anyway.
     fetch: { userAgent, delayMs: 1500, timeoutMs: 20_000, maxBytes: 20_000_000 },
