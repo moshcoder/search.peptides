@@ -313,3 +313,12 @@ describe('shop sizes: totals, thousands, packs', () => {
     expect(readAmount('BPC-157 5mg TB-500 5mg')).toMatchObject({ amount: 5, parts: 1 });
   });
 });
+
+describe('shop supplies', () => {
+  test('a syringe that names a peptide is not a listing', async () => {
+    const { peptideMatcher, toOffer } = await import('../src/shops.js');
+    const match = peptideMatcher(['Insulin', 'Tirzepatide']);
+    expect(toOffer({ vendor: 'x', id: 1, name: 'Easy Touch U-100 Insulin Syringe with Needle, 30G', price: 4.99, currency: 'USD', match })).toBeNull();
+    expect(toOffer({ vendor: 'x', id: 2, name: 'Tirzepatide 10mg', price: 60, currency: 'USD', match })).not.toBeNull();
+  });
+});
