@@ -54,7 +54,7 @@ const changed = () => {
   dirty = true;
 };
 
-const vendorsFor = (where) => open().query(`SELECT slug, name, website, shop_url, contacts FROM vendors ${where}`).all();
+const vendorsFor = (where) => open().query(`SELECT slug, name, website, shop_url, contacts, tests FROM vendors ${where}`).all();
 
 export function buildDaemon({ log } = {}) {
   const daemon = createDaemon({
@@ -110,7 +110,8 @@ export function buildDaemon({ log } = {}) {
     concurrency: 1,
     retireAfter: 20,
     host: () => new URL(FINNRICK).host,
-    items: async () => vendorsFor('').map((v) => ({ key: v.slug })),
+    // Vendors with tests first: their rating moves a verification score; an untested vendor's cannot.
+    items: async () => vendorsFor('').map((v) => ({ key: v.slug, priority: v.tests > 0 ? 1 : 0 })),
     run: async (item, ctx) => {
       try {
         const doc = await finnrickRecord(item.key, ctx.fetch);

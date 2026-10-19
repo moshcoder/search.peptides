@@ -49,7 +49,7 @@ export function OfferRow({ o, sponsored = false }) {
       </div>
       <dl class="sb-specs">
         {spec('Size', size(o), o.form && o.form !== 'vial' ? o.form : null)}
-        {spec('Verified', <VerifyBadge score={o.vendor_verification_score} status={o.vendor_verification_status} href={`/v/${o.vendor}#score`} />)}
+        {spec(<a href="/rules#formula">Verified</a>, <VerifyBadge score={o.vendor_verification_score} status={o.vendor_verification_status} href={`/v/${o.vendor}#score`} />)}
         {spec('Lab tests', o.vendor_tests || '—')}
         {spec('Price', usd(o.price_usd), o.currency && o.currency !== 'USD' ? `${o.price} ${o.currency}` : null)}
       </dl>
@@ -84,7 +84,7 @@ export function VendorRow({ v }) {
         </span>
       </div>
       <dl class="sb-specs">
-        {spec('Verified', <VerifyBadge score={v.verification_score} status={v.verification.status} href={`/v/${v.slug}#score`} />)}
+        {spec(<a href="/rules#formula">Verified</a>, <VerifyBadge score={v.verification_score} status={v.verification.status} href={`/v/${v.slug}#score`} />)}
         {spec('Lab', passText(v))}
         {spec('Listings', v.offers || '—')}
         {spec('Pay', v.payments.map((p) => PAYMENT_LABELS[p] ?? p).join(', ') || '—')}

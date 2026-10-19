@@ -148,6 +148,7 @@ describe('scores in the site', () => {
     const home = await (await app.request('/vendors')).text();
     expect(home).toContain('href="/rules"');
     expect(home).toContain(`href="/v/${slug}#score"`);
+    expect(home).toContain('<a href="/rules#formula">Verified</a>');
     const page = await (await app.request(`/v/${slug}`)).text();
     expect(page).toContain('id="score"');
     expect(page).toContain('last verified 2026-10-19');
