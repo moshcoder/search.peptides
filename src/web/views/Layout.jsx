@@ -4,8 +4,10 @@ import { config } from '../../config.js';
 import { DISCLOSURE, PRICE_NOTE } from '../../service.js';
 import { pitFooter } from '../../pit-footer.ts';
 
-// The stylesheet is cached for an hour; a content hash in its URL means a deploy never pairs new markup with old CSS.
-const CSS_VERSION = Bun.hash(readFileSync(new URL('../../../public/styles.css', import.meta.url))).toString(36);
+// The stylesheet and script are cached for an hour; a content hash in their URLs means a deploy never pairs new markup with old assets.
+const assetVersion = (file) => Bun.hash(readFileSync(new URL(`../../../public/${file}`, import.meta.url))).toString(36);
+const CSS_VERSION = assetVersion('styles.css');
+const JS_VERSION = assetVersion('app.js');
 
 /** The one HTML shell: dark ground, phosphor accent, sticky search bar, the Moshpit ring bar on top. */
 /** Who runs the site and how to search it, on every page; a page's own nodes join the same graph. */
@@ -64,7 +66,8 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content={`${config.siteUrl}/og.png`} />
         <script type="application/ld+json">{raw(JSON.stringify(graph).replace(/</g, '\\u003c'))}</script>
-        {config.crawlproofSite ? <script data-site={config.crawlproofSite} src="https://crawlproof.com/stats.js" async></script> : null}
+        {/* public/app.js loads crawlproof's counter and ads only after the visitor says yes. */}
+        <script src={`/app.js?v=${JS_VERSION}`} defer data-stats={config.crawlproofSite || undefined} data-ads={siteAd || adClaim ? '1' : undefined}></script>
       </head>
       <body>
         <a class="skip" href="#main">Skip to content</a>
@@ -87,27 +90,24 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
           </div>
         </header>
         <main class="wrap" id="main" tabindex="-1">
-          {siteAd ? (
-            <>
-              <aside class="cp-ad" data-cp-ad="" aria-label="Advertisement"></aside>
-              <script>
-                {raw(
-                  `(function(){var e=document.currentScript.previousElementSibling;e.setAttribute('data-format',matchMedia('(min-width: 760px)').matches?'banner_728x90':'banner_300x250');e.setAttribute('data-slot',${JSON.stringify(config.crawlproofAdSlot)});var n=0;(function t(){if(window.crawlproofAds){window.crawlproofAds.scan();}else if(++n<20){setTimeout(t,250);}})();})();`,
-                )}
-              </script>
-            </>
-          ) : null}
+          {siteAd ? <aside class="cp-ad" data-cp-ad="" data-site-ad={config.crawlproofAdSlot} aria-label="Advertisement"></aside> : null}
           {children}
         </main>
-        {siteAd || adClaim ? <script src="https://crawlproof.com/ad.js" defer></script> : null}
         <footer class="wrap foot">
           <p class="disclosure muted small">
             {DISCLOSURE} {PRICE_NOTE}
           </p>
           <p>
-            © {config.siteName} · <a href="/methodology">How we score and price</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
+            © {config.siteName} · <a href="/methodology">How we score and price</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
           </p>
         </footer>
+        <div class="consent" id="consent" role="region" aria-label="Privacy choice" hidden>
+          <p>
+            Count your visit? A crawlproof.com counter and ad unit keep a random id in your browser. Nothing loads unless you allow it. <a href="/privacy">Details</a>
+          </p>
+          <button class="btn primary" type="button" data-consent="yes">Allow</button>
+          <button class="btn" type="button" data-consent="no">No thanks</button>
+        </div>
         {raw(pitFooter())}
       </body>
     </html>

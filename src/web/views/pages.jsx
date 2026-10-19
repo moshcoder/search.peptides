@@ -1,4 +1,3 @@
-import { raw } from 'hono/html';
 import { config } from '../../config.js';
 import { countryName, PAYMENT_LABELS } from '../../core/normalize.js';
 import { toParams } from '../../core/parse.js';
@@ -387,7 +386,6 @@ export function VendorPage({ v }) {
               </tbody>
             </table>
           </div>
-          <script>{raw(`(()=>{const i=document.getElementById('vfilter'),rows=[...document.querySelectorAll('#vlist tbody tr')];i.addEventListener('input',()=>{const w=i.value.toLowerCase().split(/\\s+/).filter(Boolean);for(const r of rows)r.hidden=!w.every(x=>r.dataset.q.includes(x))})})()`)}</script>
         </section>
       ) : null}
       {notes.length ? (
@@ -564,9 +562,9 @@ export function PrivacyPage() {
       <div class="prose">
         <h1>Privacy</h1>
         <p class="lede">No accounts, no sign-in and no cookies set by this site. Searching the site, the API, the CLI and MCP needs nothing from you.</p>
-        <h2>Page views</h2>
+        <h2 id="choices">Page views and ads, only if you allow them</h2>
         <p>
-          Pages load a visitor counter from crawlproof.com. It keeps a random visitor id in your browser’s local storage (not a cookie) so a returning visitor is counted once, and sends the page address and referrer. The home page also carries one ad unit from crawlproof.com, which may store an id the same way. Blocking crawlproof.com in your browser stops both; the site works the same without them.
+          The site can count visits with a crawlproof.com counter, which keeps a random visitor id in your browser’s local storage (not a cookie) and sends the page address and referrer. The home page can also show one ad unit from crawlproof.com, which may store an id the same way. Neither loads until you press Allow on the bar at the bottom of the page; No thanks, or a browser sending Global Privacy Control, keeps both off. Your answer is kept in your own browser. The “Privacy choices” link in the footer asks again.
         </p>
         <h2>Server logs</h2>
         <p>This server keeps no access logs of pages or API calls. If you reach it through the pit.world relay, that relay passes your request on to it.</p>

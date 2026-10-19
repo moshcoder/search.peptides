@@ -3,6 +3,7 @@ import { compress } from 'hono/compress';
 import { normalize, resolve } from 'node:path';
 import { config } from '../config.js';
 import { handle, TOOLS } from '../mcp.js';
+import { pitFooterStyleHashes } from '../pit-footer.ts';
 import { RING_PLACEHOLDER, ringBar, visitorOnMoshpit } from '../ring.ts';
 import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, PRICE_NOTE, publicOffer, searchOffers, searchVendors, stats } from '../service.js';
 import { payConfigured, settle, startSponsor, verifyWebhook } from '../sponsor.js';
@@ -18,13 +19,16 @@ const SECURITY = {
   'referrer-policy': 'strict-origin-when-cross-origin',
   'x-frame-options': 'DENY',
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://crawlproof.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'",
 };
+// No 'unsafe-inline': every script is public/app.js, ads come in crawlproof's own frame, and the only
+// inline styles are the pit.world footer's <style> blocks, allowed by hash.
+const csp = () =>
+  `default-src 'self'; script-src 'self' https://crawlproof.com; style-src 'self' ${pitFooterStyleHashes().join(' ')}; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'`.replace(/ +;/g, ';');
 
 app.use('*', compress());
 app.use('*', async (c, next) => {
   await next();
-  for (const [k, v] of Object.entries(SECURITY)) if (!c.res.headers.has(k)) c.res.headers.set(k, v);
+  for (const [k, v] of Object.entries({ ...SECURITY, 'content-security-policy': csp() })) if (!c.res.headers.has(k)) c.res.headers.set(k, v);
   // HSTS only on the pit.world relay, a public name with a public certificate. The Moshpit name
   // itself gets none: a promise about a name the public DNS does not own (see the nginx vhost).
   if (c.req.header('x-moshpit-name') || /\.pit\.world(:\d+)?$/i.test(c.req.header('host') ?? '')) c.res.headers.set('strict-transport-security', 'max-age=31536000');

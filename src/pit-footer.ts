@@ -8,19 +8,32 @@
  * pit.world is down, it renders nothing. The fragment carries data-pit-footer,
  * which tells the pit.world relay not to add a second copy.
  */
+import { createHash } from 'node:crypto'
+
 const SNIPPET = 'https://pit.world/snippets/footer.html'
 
 let cached = ''
+let styleHashes: string[] = []
 
 /** The last good footer fragment, or '' before the first read. */
 export function pitFooter(): string {
   return cached
 }
 
+/**
+ * CSP sources for the fragment's <style> blocks ('sha256-…'), so the page's style-src
+ * needs no 'unsafe-inline'. Worked out from the copy being served, so a template
+ * change on pit.world never leaves the footer unstyled.
+ */
+export function pitFooterStyleHashes(): string[] {
+  return styleHashes
+}
+
 /** Accept a fragment only if it looks like the footer; anything else is ignored. */
 export function setPitFooter(html: unknown): boolean {
   if (typeof html !== 'string' || !html.includes('data-pit-footer') || html.length > 64_000) return false
   cached = html.trim()
+  styleHashes = [...cached.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => `'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`)
   return true
 }
 

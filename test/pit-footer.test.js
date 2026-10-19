@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { pitFooter, setPitFooter, startPitFooterRefresh } from '../src/pit-footer.ts';
 import { app } from '../src/web/app.jsx';
 
@@ -12,7 +13,10 @@ test('pit.world footer: nothing until read, then the last thing in <body>; no ad
   });
   await new Promise((r) => setTimeout(r, 10));
   stop();
-  const html = await (await app.request('/docs')).text();
+  const res = await app.request('/docs');
+  const html = await res.text();
+  // Its <style> is allowed by hash, so the page's CSP needs no 'unsafe-inline'.
+  expect(res.headers.get('content-security-policy')).toContain(`style-src 'self' 'sha256-${createHash('sha256').update('.pit-foot{}').digest('base64')}';`);
   expect(html.match(/data-pit-footer/g)?.length).toBe(1);
   expect(html).toMatch(/<\/footer>[\s\S]*data-pit-footer[\s\S]*<\/nav>\s*<\/body>/);
   expect(html.slice(html.indexOf('<footer'))).not.toContain('data-cp-ad');

@@ -42,6 +42,21 @@ describe('answer-engine surfaces', () => {
     expect((await get('/.well-known/security.txt')).body).toMatch(/^Contact: https:\/\/github\.com\/.*\nExpires: \d{4}-/);
   });
 
+  test('no page needs unsafe-inline, and crawlproof waits for consent', async () => {
+    for (const path of ['/', '/?text=bpc-157', '/p/glutathione', '/vendors', '/peptides', '/docs', '/sponsor', '/methodology', '/nope']) {
+      const { res, body } = await get(path);
+      expect(res.headers.get('content-security-policy')).not.toContain('unsafe-inline');
+      const scripts = [...body.matchAll(/<script([^>]*)>/g)].map((m) => m[1]);
+      expect(scripts.every((a) => /type="application\/ld\+json"|src="\/app\.js/.test(a))).toBe(true);
+      expect(body).not.toMatch(/\son[a-z]+="|\sstyle="/);
+      expect(body).not.toContain('crawlproof.com/stats.js');
+      expect(body).toContain('id="consent"');
+    }
+    const vendor = (await get('/vendors')).body.match(/href="\/v\/([^"]+)"/)[1];
+    const { body } = await get(`/v/${vendor}`);
+    expect([...body.matchAll(/<script([^>]*)>/g)].every((m) => /ld\+json|\/app\.js/.test(m[1]))).toBe(true);
+  });
+
   test('HSTS only through the pit.world relay', async () => {
     expect((await get('/', { host: 'search.peptides' })).res.headers.get('strict-transport-security')).toBeNull();
     expect((await get('/', { host: 'search.peptides', 'x-moshpit-name': 'search.peptides' })).res.headers.get('strict-transport-security')).toBe('max-age=31536000');
