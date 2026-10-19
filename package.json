@@ -1,0 +1,20 @@
+{
+  "name": "searchpeptides",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "search.peptides: every research-peptide vendor and listing, faceted by price per mg, lab results, payment and where it ships from, with vendor contact details. Same query on the page, the API, the CLI, the TUI and MCP.",
+  "license": "MIT",
+  "repository": "github:moshcoder/search.peptides",
+  "homepage": "https://search.peptides.pit.world",
+  "bin": { "peptides": "bin/peptides.js" },
+  "files": ["bin", "src", "public", "data/snapshot.json.gz", "README.md"],
+  "engines": { "bun": ">=1.3.0" },
+  "scripts": {
+    "dev": "bun run --hot src/main.js",
+    "start": "bun src/main.js",
+    "sync": "bun src/sync.js",
+    "enrich": "bun src/enrich.js",
+    "test": "bun test"
+  },
+  "dependencies": { "hono": "^4.10.3" }
+}

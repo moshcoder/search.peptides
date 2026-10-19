@@ -211,3 +211,18 @@ summary { cursor: pointer; }
 .cp-ad[data-cp-filled] { height: auto; overflow: visible; display: flex; justify-content: center; margin: 24px auto; }
 .cp-ad[data-cp-filled][data-format="banner_728x90"] { min-height: 106px; }
 .cp-ad[data-cp-filled][data-format="banner_300x250"] { min-height: 266px; }
+
+/* search.peptides */
+.tag { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font: 700 0.68rem var(--mono); text-transform: uppercase; letter-spacing: 0.04em; vertical-align: middle; }
+.sb.sponsored { border-color: var(--accent); }
+.facts.contact dd { overflow-wrap: anywhere; }
+.disclosure { font-weight: 600; }
+.sb-price a { display: block; }
+.ring-bar { display: flex; align-items: center; gap: 4px 16px; padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font: 13px/1.4 var(--mono); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+.ring-bar::-webkit-scrollbar { display: none; }
+.ring-bar a { color: var(--muted); }
+.ring-bar a:hover, .ring-bar a:focus-visible { color: var(--accent); text-decoration: underline; }
+.ring-bar .ring-home { color: var(--accent); font-weight: 700; }
+.ring-bar .ring-sites { display: inline-flex; gap: 12px; padding: 0 12px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.ring-bar [aria-current='page'] { color: var(--fg); }
+@media (max-width: 640px) { .ring-bar .ring-sites, .ring-bar .ring-home span { display: none; } }
