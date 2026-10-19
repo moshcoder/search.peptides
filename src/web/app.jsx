@@ -26,6 +26,13 @@ const csp = () =>
   `default-src 'self'; script-src 'self' https://crawlproof.com; style-src 'self' ${pitFooterStyleHashes().join(' ')}; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'`.replace(/ +;/g, ';');
 
 app.use('*', compress());
+// /p/glutathione/ is /p/glutathione: one URL per page, so a trailing slash redirects instead of 404ing.
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url);
+  if ((c.req.method === 'GET' || c.req.method === 'HEAD') && url.pathname.length > 1 && url.pathname.endsWith('/') && !url.pathname.startsWith('/.well-known/'))
+    return c.redirect(`${url.pathname.replace(/\/+$/, '') || '/'}${url.search}`, 301);
+  await next();
+});
 app.use('*', async (c, next) => {
   await next();
   for (const [k, v] of Object.entries({ ...SECURITY, 'content-security-policy': csp() })) if (!c.res.headers.has(k)) c.res.headers.set(k, v);

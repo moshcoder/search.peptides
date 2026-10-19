@@ -75,6 +75,8 @@ describe('answer-engine surfaces', () => {
     expect((await get('/vendors?min_score=80')).body).toContain('content="noindex, follow"');
     expect((await get('/p/glutathione')).body).not.toMatch(/href="\/p\/glutathione\?peptide=/);
     for (const path of ['/about', '/.well-known/llms.txt']) expect((await get(path)).res.status).toBe(200);
+    const slash = await app.request('/p/glutathione/?in_stock=1');
+    expect([slash.status, slash.headers.get('location')]).toEqual([301, '/p/glutathione?in_stock=1']);
   });
 
   test('HSTS only through the pit.world relay', async () => {
