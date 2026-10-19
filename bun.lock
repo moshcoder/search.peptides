@@ -5,6 +5,7 @@
     "": {
       "name": "searchpeptides",
       "dependencies": {
+        "@profullstack/footer": "0.2.5",
         "@profullstack/scraper-daemon": "0.2.1",
         "bullmq": "6.3.17",
         "hono": "^4.10.3",
@@ -26,6 +27,8 @@
     "@msgpackr-extract/msgpackr-extract-linux-x64": ["@msgpackr-extract/msgpackr-extract-linux-x64@3.0.4", "", { "os": "linux", "cpu": "x64" }, "sha512-8TNXMEjJc3QEy7R/x1INhgiU+XakDAFUzBhaz7+Rbrs8NH5UQeHQxxmzsSBJGyV6I1jW79undiQm8tOI+D+8FQ=="],
 
     "@msgpackr-extract/msgpackr-extract-win32-x64": ["@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4", "", { "os": "win32", "cpu": "x64" }, "sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ=="],
+
+    "@profullstack/footer": ["@profullstack/footer@0.2.5", "", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"], "bin": { "profullstack-footer": "bin/profullstack-footer.js" } }, "sha512-/CKwFP3m+qM0ZFTC9Rj11fgClutJzeYliX44Qp4qwrv2JgA/1k4tVOB3mhkPhaeckUhnfg5UyESDI1uoWr9c2w=="],
 
     "@profullstack/scraper-daemon": ["@profullstack/scraper-daemon@0.2.1", "", { "peerDependencies": { "bullmq": ">=6", "ioredis": ">=5" }, "optionalPeers": ["bullmq", "ioredis"], "bin": { "scraper-daemon": "bin/scraper-daemon.js" } }, "sha512-oqmN0eOPmNAz7Q88XOIL2xEb87jc32IbIWyteUtmIhqqLHHQhu19lsgrrtoNClH/6tQoI7cSQFCAnoFH1YoNXw=="],
 
