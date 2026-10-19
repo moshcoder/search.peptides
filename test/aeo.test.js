@@ -1,9 +1,13 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
+import { open } from '../src/db.js';
 import { invalidate, parse, searchOffers } from '../src/service.js';
 import { loadSnapshotIfEmpty } from '../src/sync.js';
 import { app } from '../src/web/app.jsx';
 
 beforeAll(() => {
+  // The test files share one in-memory database and bun does not fix their order: core.test.js
+  // writes a two-vendor fixture register, so drop whatever register is there and load the snapshot.
+  open().exec("DELETE FROM vendors WHERE origin = 'register'; DELETE FROM offers WHERE origin = 'register'");
   loadSnapshotIfEmpty();
   invalidate();
 });

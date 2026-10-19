@@ -99,6 +99,8 @@ describe('Finnrick feed', () => {
 describe('scores in the site', () => {
   let slug;
   beforeAll(() => {
+    // Same shared database as the other files, in any order: start from the snapshot register.
+    open().exec("DELETE FROM vendors WHERE origin = 'register'; DELETE FROM offers WHERE origin = 'register'");
     loadSnapshotIfEmpty();
     slug = open().query("SELECT slug FROM vendors WHERE origin = 'register' ORDER BY slug LIMIT 1").get().slug;
     const rows = Array.from({ length: 5 }, (_, i) => ({ ...t({ vendor: slug, record_id: `fx${i}`, passed: i === 0 ? 0 : 1 }), peptide: 'BPC-157', peptide_slug: 'bpc-157', reasons: '[]', seen_at: NOW }));
