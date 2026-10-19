@@ -322,3 +322,17 @@ describe('shop supplies', () => {
     expect(toOffer({ vendor: 'x', id: 2, name: 'Tirzepatide 10mg', price: 60, currency: 'USD', match })).not.toBeNull();
   });
 });
+
+describe('shop sizes: name and variation together', () => {
+  test('NAD+ is not a blend; a label that is the vial times a pack is a pack', async () => {
+    const { peptideMatcher, toOffer, sizeOf } = await import('../src/shops.js');
+    expect(sizeOf('Glutathione 1500mg', '7500mg (5vials) $182.16')).toMatchObject({ amount: 1500, pack: 5 });
+    expect(sizeOf('BPC-157', 'Size: 10 MG')).toMatchObject({ amount: 10, pack: 1 });
+    expect(sizeOf('CJC-1295 / Ipamorelin Blend', 'Dosage: 5 MG / 5 MG', true)).toMatchObject({ amount: 10 });
+    const match = peptideMatcher(['NAD+', 'BPC-157 + TB-500']);
+    const nad = toOffer({ vendor: 'x', id: 1, name: 'NAD+ 1000mg x 10vials, 10000mg', price: 265, currency: 'USD', match });
+    expect(nad).toMatchObject({ amount: 1000, pack_qty: 10, usd_per_mg: 0.0265 });
+    const wolverine = toOffer({ vendor: 'x', id: 2, name: 'BPC-157 + TB-500', label: 'Dosage: 5mg / 5mg', price: 80, currency: 'USD', match });
+    expect(wolverine).toMatchObject({ amount: 10, usd_per_mg: 8 });
+  });
+});
