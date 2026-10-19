@@ -25,3 +25,14 @@ test('pit.world footer: nothing until read, then the last thing in <body>; no ad
   stop2();
   expect(pitFooter()).toContain('data-pit-footer');
 });
+
+test('Profullstack webring row + built.indie badge: server-rendered, no inline style, between the site footer and the pit footer', async () => {
+  const html = await (await app.request('/docs')).text();
+  const ring = html.indexOf('class="pfs-footer"');
+  expect(ring).toBeGreaterThan(html.indexOf('class="wrap foot"'));
+  expect(html).toContain('https://rssamplifier.com/ring/profullstack/next?from=https%3A%2F%2Fsearch.peptides.pit.world%2F');
+  expect(html).toContain('href="https://built.indie.pit.world/for?site=https://search.peptides.pit.world/"');
+  expect(html.slice(ring, html.indexOf('</footer>', ring))).not.toContain('<style');
+  const pit = html.indexOf('data-pit-footer');
+  if (pit > -1) expect(pit).toBeGreaterThan(ring);
+});
