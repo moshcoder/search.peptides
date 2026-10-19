@@ -18,7 +18,7 @@ describe('answer-engine surfaces', () => {
   test('every page carries the site graph; a peptide page adds breadcrumbs, listings and answers', async () => {
     const { body } = await get('/p/glutathione');
     const types = graph(body).map((n) => n['@type']);
-    expect(types).toEqual(['Organization', 'WebSite', 'WebPage', 'BreadcrumbList', 'ItemList', 'FAQPage']);
+    expect(types).toEqual(['Organization', 'WebSite', 'SoftwareApplication', 'WebPage', 'BreadcrumbList', 'ItemList', 'FAQPage']);
     expect(body).toContain('quick answers');
     expect(body).toContain('summary_large_image');
     expect(body).toContain('/api/v1/peptides/glutathione');
@@ -27,7 +27,7 @@ describe('answer-engine surfaces', () => {
 
   test('a filtered peptide page keeps only the breadcrumbs', async () => {
     const { body } = await get('/p/glutathione?in_stock=1');
-    expect(graph(body).map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'WebPage', 'BreadcrumbList']);
+    expect(graph(body).map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'SoftwareApplication', 'WebPage', 'BreadcrumbList']);
   });
 
   test('robots names the AI crawlers and repeats the disallows for them', async () => {
@@ -74,9 +74,18 @@ describe('answer-engine surfaces', () => {
     expect((await get('/?text=bpc-157')).body).toContain('content="noindex, follow"');
     expect((await get('/vendors?min_score=80')).body).toContain('content="noindex, follow"');
     expect((await get('/p/glutathione')).body).not.toMatch(/href="\/p\/glutathione\?peptide=/);
-    for (const path of ['/about', '/.well-known/llms.txt']) expect((await get(path)).res.status).toBe(200);
+    for (const path of ['/about', '/changelog', '/.well-known/llms.txt']) expect((await get(path)).res.status).toBe(200);
     const slash = await app.request('/p/glutathione/?in_stock=1');
     expect([slash.status, slash.headers.get('location')]).toEqual([301, '/p/glutathione?in_stock=1']);
+  });
+
+  test('a peptide page carries what answer engines look for: byline, audience, research link, pricing and contact paths', async () => {
+    const { body } = await get('/p/glutathione');
+    expect(body).toContain('<meta name="author" content="Profullstack, Inc."/>');
+    expect(body).toContain('Built for researchers comparing Glutathione vendors');
+    expect(body).toContain('href="https://pubmed.ncbi.nlm.nih.gov/?term=Glutathione"');
+    const footer = body.slice(body.indexOf('<footer'));
+    for (const href of ['/sponsor', '/about#contact', '/changelog', '/about']) expect(footer).toContain(`href="${href}"`);
   });
 
   test('HSTS only through the pit.world relay', async () => {

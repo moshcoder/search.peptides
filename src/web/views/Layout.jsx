@@ -29,6 +29,21 @@ const SITE_GRAPH = () => [
     publisher: { '@id': `${config.siteUrl}/#org` },
     potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${config.siteUrl}/?text={search_term_string}` }, 'query-input': 'required name=search_term_string' },
   },
+  // The same search as a keyless API, CLI and MCP server: a product in its own right, on every page.
+  {
+    '@type': 'SoftwareApplication',
+    '@id': `${config.siteUrl}/#app`,
+    name: 'searchpeptides',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Linux, macOS, Windows (Bun)',
+    description: 'Keyless REST API, CLI, TUI and MCP server for research-peptide listings and vendors: price per mg, independent lab results, payment, shipping and contact details.',
+    url: `${config.siteUrl}/docs`,
+    downloadUrl: 'https://www.npmjs.com/package/searchpeptides',
+    softwareHelp: `${config.siteUrl}/llms.txt`,
+    codeRepository: REPO,
+    offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
+    publisher: { '@id': `${config.siteUrl}/#org` },
+  },
 ];
 export const REPO = 'https://github.com/moshcoder/search.peptides';
 
@@ -55,6 +70,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>{full}</title>
         <meta name="description" content={desc} />
+        <meta name="author" content="Profullstack, Inc." />
         <meta name="color-scheme" content="dark" />
         <meta name="theme-color" content="#0b0d12" />
         <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
@@ -112,7 +128,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             {DISCLOSURE} {PRICE_NOTE}
           </p>
           <p>
-            © {config.siteName} · <a href="/about">About</a> · <a href="/methodology">How we score and price</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
+            © {config.siteName} · <a href="/about">About</a> · <a href="/about#contact">Contact</a> · <a href="/methodology">How we score and price</a> · <a href="/sponsor">Sponsor pricing</a> · <a href="/changelog">Changelog</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
           </p>
         </footer>
         <div class="consent" id="consent" role="region" aria-label="Privacy choice" hidden>

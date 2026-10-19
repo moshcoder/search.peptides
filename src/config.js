@@ -12,6 +12,8 @@ export const config = {
   sourceUrl: env('SOURCE_URL', 'https://peptidecompare.net/data.json'),
   syncHours: Number(env('SYNC_HOURS', 24)),
   roles: env('ROLES', 'web,worker').split(','),
+  // Web processes sharing the port (SO_REUSEPORT); the first also runs the daemon when ROLES says so.
+  webWorkers: Math.max(1, Number(env('WEB_WORKERS', 4)) || 1),
   coinpay: {
     baseUrl: env('COINPAY_API_URL', 'https://coinpayportal.com').replace(/\/+$/, '').replace(/\/api$/, ''),
     apiKey: env('COINPAY_API_KEY', ''),

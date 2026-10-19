@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { normalize, resolve } from 'node:path';
 import { config } from '../config.js';
+import { CHANGELOG } from '../changelog.js';
 import { handle, TOOLS } from '../mcp.js';
 import { pitFooterStyleHashes } from '../pit-footer.ts';
 import { RING_PLACEHOLDER, ringBar, visitorOnMoshpit } from '../ring.ts';
@@ -9,7 +10,7 @@ import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, PRICE_NOTE, pub
 import { payConfigured, settle, startSponsor, verifyWebhook } from '../sponsor.js';
 import { open } from '../db.js';
 import { version } from '../version.js';
-import { AboutPage, Docs, ListingsPage, MessagePage, MethodologyPage, PeptidesPage, PrivacyPage, SponsorPage, syncedDay, TermsPage, VendorPage, VendorsPage } from './views/pages.jsx';
+import { AboutPage, ChangelogPage, Docs, ListingsPage, MessagePage, MethodologyPage, PeptidesPage, PrivacyPage, SponsorPage, syncedDay, TermsPage, VendorPage, VendorsPage } from './views/pages.jsx';
 
 export const app = new Hono();
 const PUBLIC = resolve(new URL('../../public', import.meta.url).pathname);
@@ -92,6 +93,7 @@ app.get('/v/:slug', (c) => {
 app.get('/peptides', (c) => html(c, <PeptidesPage peptides={listPeptides().filter((p) => p.offers || p.tests)} q={c.req.query('q')} />));
 app.get('/docs', (c) => html(c, <Docs stats={stats()} />));
 app.get('/about', (c) => html(c, <AboutPage stats={stats()} />));
+app.get('/changelog', (c) => html(c, <ChangelogPage entries={CHANGELOG} />));
 app.get('/methodology', (c) => html(c, <MethodologyPage stats={stats()} />));
 app.get('/privacy', (c) => html(c, <PrivacyPage />));
 app.get('/terms', (c) => html(c, <TermsPage />));
@@ -199,7 +201,7 @@ app.get('/sitemap.xml', (c) => {
   const day = (iso) => (iso ? String(iso).slice(0, 10) : null);
   const synced = syncedDay(stats());
   const urls = [
-    ...['/', '/vendors', '/peptides', '/docs', '/about', '/methodology', '/sponsor'].map((u) => [u, synced]),
+    ...['/', '/vendors', '/peptides', '/docs', '/about', '/changelog', '/methodology', '/sponsor'].map((u) => [u, synced]),
     ...listPeptides().filter((p) => p.offers).map((p) => [`/p/${p.slug}`, synced]),
     ...open().query('SELECT slug, checked_at FROM vendors').all().map((v) => [`/v/${v.slug}`, day(v.checked_at) ?? synced]),
   ];

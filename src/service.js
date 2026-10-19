@@ -23,6 +23,17 @@ export function invalidate() {
   cache = null;
 }
 
+// Several web processes share the SQLite file; a commit from another one (the daemon's sync, a
+// sponsor webhook) bumps PRAGMA data_version on this connection, and the cache is rebuilt.
+let dataVersion = null;
+let checkedAt = 0;
+function staleCheck() {
+  if (!cache || Date.now() - checkedAt < 15_000) return;
+  checkedAt = Date.now();
+  const v = open().query('PRAGMA data_version').get().data_version;
+  if (v !== dataVersion) cache = null;
+}
+
 /** vendor_contacts rows → { emails, phones, websites, socials: { telegram: [...] } }. */
 function contactCard(rows = []) {
   const card = { emails: [], phones: [], websites: [], socials: {} };
@@ -78,7 +89,10 @@ function shapeVendor(r, sponsored, contactRows) {
 }
 
 function load() {
+  staleCheck();
   if (cache) return cache;
+  dataVersion = open().query('PRAGMA data_version').get().data_version;
+  checkedAt = Date.now();
   const db = open();
   const now = new Date().toISOString();
   const sponsored = new Set(db.query("SELECT vendor FROM sponsors WHERE status = 'paid' AND until > ?").all(now).map((r) => r.vendor));
