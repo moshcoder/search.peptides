@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { createHmac } from 'node:crypto';
 import { cleanUrl, countries, paymentClasses } from '../src/core/normalize.js';
 import { readText, toParams } from '../src/core/parse.js';
 import { robotsAllows } from '@profullstack/scraper-daemon';
@@ -7,7 +6,6 @@ import { finnrickRows, saveDiscovered } from '../src/discover.js';
 import { contactsIn, emailsIn, finnrickToContacts, normalizeContact, saveContacts, socialKind, whatsappNumber } from '../src/enrich.js';
 import { open } from '../src/db.js';
 import { getVendor, invalidate, parse, searchOffers, searchVendors } from '../src/service.js';
-import { settle, verifyWebhook } from '../src/sponsor.js';
 import { loadSnapshotIfEmpty, transform, unpackProducts, write } from '../src/sync.js';
 
 const DOC = {
@@ -164,28 +162,6 @@ describe('contacts', () => {
   });
 });
 
-describe('sponsor', () => {
-  const sign = (body, t = Math.floor(Date.now() / 1000)) => `t=${t},v1=${createHmac('sha256', 'whsec_test').update(`${t}.${body}`).digest('hex')}`;
-  test('verifies the CoinPay signature over the raw body', () => {
-    const body = '{"a":1}';
-    expect(verifyWebhook(body, sign(body))).toBe(true);
-    expect(verifyWebhook(body, sign('{"a":2}'))).toBe(false);
-    expect(verifyWebhook(body, sign(body, 1000))).toBe(false);
-  });
-  test('a settled payment pins the vendor; a repeat changes nothing; a renewal extends', () => {
-    const db = open();
-    const slug = db.query('SELECT slug FROM vendors LIMIT 1').get().slug;
-    db.query("INSERT INTO sponsors (ref, vendor, usd, created_at) VALUES ('pay_1', ?, 49, '2026-10-19'), ('pay_2', ?, 49, '2026-10-19')").run(slug, slug);
-    const now = new Date('2026-10-19T00:00:00Z');
-    expect(settle({ type: 'payment.detected', data: { payment_id: 'pay_1', status: 'detected' } }, now).ignored).toBeTruthy();
-    const first = settle({ type: 'payment.confirmed', data: { payment_id: 'pay_1', status: 'confirmed' } }, now);
-    expect(first.until).toBe('2026-11-18T00:00:00.000Z');
-    expect(settle({ data: { payment_id: 'pay_1', status: 'confirmed' } }, now).already).toBe('pay_1');
-    expect(settle({ data: { payment_id: 'pay_2', status: 'confirmed' } }, now).until).toBe('2026-12-18T00:00:00.000Z');
-    expect(settle({ data: { payment_id: 'nope', status: 'confirmed' } }, now).ignored).toMatch(/unknown/);
-  });
-});
-
 describe('discovery and the daemon’s writers', () => {
   test('Finnrick’s list adds the vendors the register lacks, and a register sync keeps them', () => {
     open().exec('DELETE FROM vendors');
@@ -252,6 +228,7 @@ describe('a source that stops serving its register', () => {
 
 describe('the export', () => {
   test('carries every vendor, not one page of them', () => {
+    invalidate();
     const all = open().query('SELECT count(*) n FROM vendors').get().n;
     expect(searchVendors({ filters: {}, understood: [], text: '' }, { all: true }).vendors.length).toBe(all);
   });

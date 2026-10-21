@@ -9,6 +9,7 @@
  *   peptides peptide <slug> [--json]         lab results by vendor
  *   peptides peptides [--json]
  *   peptides stats
+ *   peptides sponsor <vendor> --email <you>   a CoinPay checkout url (any coin or PayPal)
  *   peptides tui                 interactive search
  *   peptides mcp                 stdio MCP server (the site's, or the local database with --local)
  *   peptides serve | sync
@@ -147,6 +148,13 @@ async function main() {
           c.c(`\n  ${d.page ?? ''}`),
         ].join('\n'),
       );
+    case 'sponsor': {
+      if (!pos[0] || typeof flags.email !== 'string') throw new Error('usage: peptides sponsor <vendor-slug> --email you@example.com');
+      const res = await fetch(`${BASE}/api/v1/sponsor`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ vendor: pos[0], email: flags.email }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? `${res.status}`);
+      return out(d, (x) => `$${x.usd} for ${x.days} days. Pay with any coin or PayPal:\n  ${c.c(x.url)}`);
+    }
     case 'stats':
       return out(await api('/api/v1/stats'), (d) => Object.entries(d).map(([k, v]) => `${pad(k, 22)} ${v}`).join('\n'));
     case 'tui':
@@ -177,6 +185,7 @@ async function main() {
   peptides vendor <slug>       verification score, contact card, lab tests, listings
   peptides peptide <slug>      lab results by vendor
   peptides peptides | stats
+  peptides sponsor <vendor> --email <you>   CoinPay checkout url (any coin or PayPal)
   peptides tui                 interactive
   peptides mcp                 stdio MCP (claude mcp add peptides -- bunx searchpeptides mcp)
   peptides serve | sync

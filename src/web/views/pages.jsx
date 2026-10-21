@@ -563,10 +563,10 @@ export function PeptidesPage({ peptides, q }) {
 
 export function SponsorPage({ vendors, picked, open, error, cancelled }) {
   return (
-    <Layout title="Sponsor a vendor" path="/sponsor" description={`Pin a vendor above matching listings for ${config.sponsorDays} days, labelled Sponsored. $${config.sponsorUsd}, paid in crypto.`}>
+    <Layout title="Sponsor a vendor" path="/sponsor" description={`Pin a vendor above matching listings for ${config.sponsorDays} days, labelled Sponsored. $${config.sponsorUsd}, paid in any coin or PayPal.`}>
       <h1>Sponsor a vendor</h1>
       <p class="lede">
-        ${config.sponsorUsd} pins one vendor for {config.sponsorDays} days: its best matching listing shows first on every search it matches, and it heads the vendor list, always labelled <b>Sponsored</b>. Scores, lab results and the ranking of everything else stay exactly as they are. Paid in crypto through CoinPay.
+        ${config.sponsorUsd} pins one vendor for {config.sponsorDays} days: its best matching listing shows first on every search it matches, and it heads the vendor list, always labelled <b>Sponsored</b>. Scores, lab results and the ranking of everything else stay exactly as they are. Pay through CoinPay with any coin it takes (BTC, ETH, SOL, USDC and more) or PayPal; you pick on its checkout page.
       </p>
       {cancelled ? <p class="note">Payment cancelled. Nothing was charged.</p> : null}
       {error ? <p class="note">{error}</p> : null}
@@ -586,7 +586,7 @@ export function SponsorPage({ vendors, picked, open, error, cancelled }) {
             Your email (for the receipt)
             <input type="email" name="email" required autocomplete="email" />
           </label>
-          <button class="btn primary" type="submit">Pay ${config.sponsorUsd} in crypto</button>
+          <button class="btn primary" type="submit">Pay ${config.sponsorUsd} with crypto or PayPal</button>
         </form>
       ) : (
         <p class="note">Sponsorships open shortly.</p>
@@ -627,7 +627,9 @@ GET ${base}/api/v1/vendors/<slug>          lab tests, listings, contact card
 GET ${base}/api/v1/peptides                 every peptide with vendors and lowest $/mg
 GET ${base}/api/v1/peptides/<slug>          lab results by vendor
 GET ${base}/api/v1/export                   the whole register (nichedb reads this)
-GET ${base}/api/v1/stats`}</pre>
+GET ${base}/api/v1/stats
+POST ${base}/api/v1/sponsor {"vendor":"<slug>","email":"you@example.com"}
+                                            a CoinPay checkout url: pay with any coin or PayPal`}</pre>
       <p>
         Filters: <code>text q peptide vendor form payment ships_from ordering contact min_price max_price min_per_mg max_per_mg min_mg max_mg min_verification min_score min_pass in_stock tested passed coupon single blend priced sort page</code>. Every search response carries <code>facets</code>: each option with the count it leads to and the query that applies it.
       </p>
@@ -637,11 +639,12 @@ bunx searchpeptides vendors --contact email --min-verification 70
 bunx searchpeptides rules
 bunx searchpeptides vendor chimera-peptides
 bunx searchpeptides peptide retatrutide
+bunx searchpeptides sponsor chimera-peptides --email you@example.com
 bunx searchpeptides tui`}</pre>
       <h2>MCP</h2>
       <pre>{`claude mcp add peptides -- bunx searchpeptides mcp
 # or streamable HTTP: POST ${base}/mcp
-# tools: search_listings, search_vendors, get_vendor, get_peptide, list_peptides`}</pre>
+# tools: search_listings, search_vendors, get_vendor, get_rules, get_peptide, list_peptides, sponsor_vendor`}</pre>
       <p class="muted small">
         Ask the site directly: <a href="/llms.txt">llms.txt</a>, <a href="/skill.md">skill.md</a>, <a href="/.well-known/openmcp.json">openmcp.json</a>.
       </p>
