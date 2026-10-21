@@ -181,9 +181,6 @@ export function ListingsPage({ result, stats, text, peptide = null, base = '/', 
             </p>
           ) : null}
           {searched ? <ApiReadout result={result} tool="search_listings" /> : null}
-          {config.adNetworkClaim ? (
-            <aside class="cp-ad" data-ad-network={config.adNetworkClaim} data-cp-ad="" data-slot={config.adNetworkSlot} data-format="banner_300x250" aria-label="Advertisement"></aside>
-          ) : null}
         </>
       )}
       <div class="results-layout">

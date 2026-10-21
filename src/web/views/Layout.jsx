@@ -63,7 +63,8 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
     ['/sponsor', 'Sponsor'],
     ['/docs', 'API · CLI · MCP'],
   ];
-  const siteAd = Boolean(config.crawlproofAdSlot && !path.startsWith('/sponsor'));
+  // One low-profile text_link unit per page, never on the home page.
+  const siteAd = Boolean(config.crawlproofAdSlot && path !== '/' && !path.startsWith('/sponsor'));
   const active = (h) => (h === '/' ? path === '/' : path.startsWith(h));
   return (
     <html lang="en">
@@ -99,7 +100,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <meta name="twitter:image" content={`${config.siteUrl}/og.png`} />
         <script type="application/ld+json">{raw(JSON.stringify(graph).replace(/</g, '\\u003c'))}</script>
         {/* public/app.js loads crawlproof's counter and ads only after the visitor says yes. */}
-        <script src={`/app.js?v=${JS_VERSION}`} defer data-stats={config.crawlproofSite || undefined} data-ads={siteAd || adClaim ? '1' : undefined}></script>
+        <script src={`/app.js?v=${JS_VERSION}`} defer data-stats={config.crawlproofSite || undefined} data-ads={siteAd ? '1' : undefined}></script>
       </head>
       <body>
         <a class="skip" href="#main">Skip to {title ?? 'the search'}</a>

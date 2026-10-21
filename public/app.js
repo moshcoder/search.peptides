@@ -53,11 +53,10 @@
     $$('[data-cp-ad]').forEach(function (e) {
       var slot = e.getAttribute('data-slot') || e.getAttribute('data-site-ad');
       if (!slot) return;
-      var wide = e.hasAttribute('data-site-ad') && matchMedia('(min-width: 760px)').matches;
       var f = document.createElement('iframe');
-      f.src = 'https://crawlproof.com/api/ads/frame?slot=' + encodeURIComponent(slot) + '&format=' + (wide ? 'banner_728x90' : e.getAttribute('data-format') || 'banner_300x250') + '&theme=dark';
-      f.width = wide ? 728 : 300;
-      f.height = wide ? 90 : 250;
+      f.src = 'https://crawlproof.com/api/ads/frame?slot=' + encodeURIComponent(slot) + '&format=text_link';
+      f.width = '100%';
+      f.height = 40;
       f.title = 'Advertisement';
       f.loading = 'lazy';
       f.setAttribute('scrolling', 'no');
