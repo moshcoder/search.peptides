@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { startSponsor } from './sponsor.js';
 import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, rulesReport, searchOffers, searchVendors, stats } from './service.js';
 import { version } from './version.js';
 
@@ -100,6 +101,15 @@ export const TOOLS = [
     description: 'Every peptide in the register with vendor and listing counts, lowest USD per mg and lab pass counts.',
     inputSchema: { type: 'object', properties: {} },
     run: () => ({ ...stats(), peptides: listPeptides() }),
+  },
+  {
+    name: 'sponsor_vendor',
+    description: `Start a sponsorship: $${config.sponsorUsd} pins one vendor above matching results for ${config.sponsorDays} days, always labelled Sponsored. Returns a CoinPay hosted checkout url; the buyer opens it and pays with any coin or PayPal. Nothing is charged until they pay there.`,
+    inputSchema: { type: 'object', properties: { vendor: { type: 'string', description: 'Vendor slug.' }, email: { type: 'string', description: 'Email for the receipt.' } }, required: ['vendor', 'email'] },
+    run: async (a) => {
+      const r = await startSponsor(a);
+      return { ref: r.ref, checkout_session_id: r.sessionId, url: r.payUrl, methods: r.methods, usd: config.sponsorUsd, days: config.sponsorDays };
+    },
   },
 ];
 

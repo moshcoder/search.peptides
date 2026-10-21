@@ -187,6 +187,11 @@ function migrate(d) {
   if (!offerCols.has('origin')) d.exec("ALTER TABLE offers ADD COLUMN origin TEXT NOT NULL DEFAULT 'register'");
   if (!offerCols.has('checked_at')) d.exec('ALTER TABLE offers ADD COLUMN checked_at TEXT');
   d.exec('CREATE INDEX IF NOT EXISTS offers_origin ON offers(vendor, origin)');
+  // Since 2026-10-21 a sponsorship is a CoinPay hosted checkout session; the webhook settles by its id.
+  const sponsorCols = new Set(d.query('PRAGMA table_info(sponsors)').all().map((c) => c.name));
+  if (!sponsorCols.has('checkout_session_id')) d.exec('ALTER TABLE sponsors ADD COLUMN checkout_session_id TEXT');
+  if (!sponsorCols.has('payment_id')) d.exec('ALTER TABLE sponsors ADD COLUMN payment_id TEXT');
+  d.exec('CREATE UNIQUE INDEX IF NOT EXISTS sponsors_session ON sponsors(checkout_session_id) WHERE checkout_session_id IS NOT NULL');
   // Contacts from the first crawler carry a bare source; they came from vendors' own sites, so they join that set.
   d.exec("UPDATE vendor_contacts SET source = 'site:' || coalesce(source, '') WHERE source IS NULL OR (source NOT LIKE 'site%' AND source NOT LIKE 'finnrick%')");
 }

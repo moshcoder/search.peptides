@@ -43,6 +43,6 @@ bun test
 
 `/opt/search.peptides`, unit `search-peptides`, port 8802, `bin/install.sh` (OpenInstall). app.env at `/root/.local/share/search-peptides/app.env` from vault `profullstack/search-peptides--prod`. Every merge to main deploys through the forced command `deploy/search-peptides-deploy`; `deploy/after-checkout.sh` takes an online copy of the database first (`~anthony/Backups/root-db/search-peptides/search-peptides-predeploy-*.sqlite.gz`, newest 5). Moshpit origin vhost: `deploy/nginx-search.peptides.conf`, installed as `/etc/moshpit/templates/search.peptides.conf`.
 
-Sponsored placement ($49 / 30 days, CoinPay) is the one thing for sale; sponsored vendors are always labelled.
+Sponsored placement ($49 / 30 days) is the one thing for sale; sponsored vendors are always labelled. It is paid through a CoinPay hosted checkout (any coin or PayPal): `/sponsor`, `POST /api/v1/sponsor`, `peptides sponsor <vendor> --email <you>` or the MCP tool `sponsor_vendor`.
 
 MIT.

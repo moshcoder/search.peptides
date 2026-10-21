@@ -113,7 +113,7 @@ app.post('/sponsor', async (c) => {
     return html(c, <SponsorPage vendors={sponsorVendors()} picked={String(form.vendor ?? '')} open={payConfigured()} error={err.message} />, 400);
   }
 });
-app.get('/sponsor/thanks', (c) => html(c, <MessagePage title="Thank you" message="Your sponsorship starts as soon as the payment confirms on chain, usually within a few minutes. The vendor is then pinned, labelled Sponsored." />));
+app.get('/sponsor/thanks', (c) => html(c, <MessagePage title="Thank you" message="Your sponsorship starts as soon as the payment confirms: at once for PayPal, usually within a few minutes for a coin. The vendor is then pinned, labelled Sponsored." />));
 app.post('/hooks/coinpay', async (c) => {
   const raw = await c.req.text();
   if (!verifyWebhook(raw, c.req.header('x-coinpay-signature') ?? c.req.header('coinpay-signature'))) return c.json({ error: 'bad signature' }, 401);
@@ -130,8 +130,8 @@ app.post('/hooks/coinpay', async (c) => {
 app.post('/api/v1/sponsor', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   try {
-    const { ref, payUrl } = await startSponsor(body);
-    return json(c, { ref, pay_url: payUrl, usd: config.sponsorUsd, days: config.sponsorDays });
+    const { ref, sessionId, payUrl, methods } = await startSponsor(body);
+    return json(c, { ref, checkout_session_id: sessionId, url: payUrl, pay_url: payUrl, methods, usd: config.sponsorUsd, days: config.sponsorDays });
   } catch (err) {
     return json(c, { error: err.message }, 400);
   }
@@ -283,7 +283,7 @@ function llmsFull() {
 - Lab tests: Finnrick's independent test results for the vendor. "passed_test" on a listing means the vendor has at least one passing test for that peptide, not that the exact batch was tested.
 - Contacts: read from each vendor's own website weekly and Finnrick's vendor records every 3 days.
 - Freshness: prices and lab results re-read hourly; new vendors looked for every 6 hours. Last read: ${syncedDay(s) ? s.synced_at : 'unknown'}.
-- Sponsored: a vendor can pay $${config.sponsorUsd} for a ${config.sponsorDays}-day pin above matching results, always labelled Sponsored; nothing else is paid placement.
+- Sponsored: a vendor can pay $${config.sponsorUsd} for a ${config.sponsorDays}-day pin above matching results, always labelled Sponsored; nothing else is paid placement. Start one with POST ${config.siteUrl}/api/v1/sponsor {"vendor":"<slug>","email":"<receipt email>"}: it returns a CoinPay checkout url where any coin or PayPal pays.
 - Corrections: https://github.com/moshcoder/search.peptides/issues
 
 ## Every peptide (${peptides.length})
@@ -307,6 +307,7 @@ curl -s '${config.siteUrl}/api/v1/search?text=tirzepatide+lab+tested+under+$1/mg
 curl -s '${config.siteUrl}/api/v1/vendors?contact=email&min_verification=70'
 curl -s '${config.siteUrl}/api/v1/vendors/<slug>'   # verification score + components, contact card, lab tests, listings
 curl -s '${config.siteUrl}/api/v1/rules'            # how the verification score is computed
+curl -s -X POST '${config.siteUrl}/api/v1/sponsor' -H 'content-type: application/json' -d '{"vendor":"<slug>","email":"<receipt email>"}'   # $${config.sponsorUsd} sponsorship: returns a CoinPay checkout url (any coin or PayPal)
 \`\`\`
 
 Or add the MCP server: \`claude mcp add peptides -- bunx searchpeptides mcp\`.
