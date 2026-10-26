@@ -32,6 +32,7 @@ test('Profullstack webring row + built.indie badge: server-rendered, no inline s
   expect(ring).toBeGreaterThan(html.indexOf('class="wrap foot"'));
   expect(html).toContain('https://rssamplifier.com/ring/profullstack/next?from=https%3A%2F%2Fsearch.peptides.pit.world%2F');
   expect(html).toContain('href="https://built.indie.pit.world/for?site=https://search.peptides.pit.world/"');
+  expect(html).toContain('src="https://pwamart.com/for.svg?site=https://search.peptides.pit.world/"');
   expect(html.slice(ring, html.indexOf('</footer>', ring))).not.toContain('<style');
   const pit = html.indexOf('data-pit-footer');
   if (pit > -1) expect(pit).toBeGreaterThan(ring);
