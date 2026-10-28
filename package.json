@@ -24,7 +24,7 @@
   "dependencies": {
     "@profullstack/coinpay-onboard": "0.2.0",
     "@profullstack/footer": "latest",
-    "@profullstack/scraper-daemon": "0.2.1",
+    "@profullstack/scraper-daemon": "0.2.2",
     "bullmq": "6.4.2",
     "hono": "^4.13.14",
     "ioredis": "^6.0.0"
