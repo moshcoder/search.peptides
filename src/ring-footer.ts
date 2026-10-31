@@ -10,7 +10,28 @@
  */
 import { footerHtml, footerHtmlSync } from '@profullstack/footer'
 
-const OPTIONS = { site: 'https://search.peptides.pit.world/', since: 2026, css: false }
+const OPTIONS = {
+  site: 'https://search.peptides.pit.world/',
+  name: 'Search Peptides',
+  owner: { name: 'Search Peptides', url: 'https://search.peptides.pit.world/' },
+  since: 2026,
+  css: false,
+  links: [
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/about#contact' },
+    { label: 'Scoring rules', href: '/rules' },
+    { label: 'How we price', href: '/methodology' },
+    { label: 'Sponsor pricing', href: '/sponsor' },
+    { label: 'Changelog', href: '/changelog' },
+    { label: 'API · CLI · MCP', href: '/docs' },
+    { label: 'llms.txt', href: '/llms.txt' },
+    { label: 'Privacy', href: '/privacy' },
+    { label: 'Terms', href: '/terms' },
+    { label: 'Report a correction', href: 'https://github.com/moshcoder/search.peptides/issues' },
+    { label: 'Source', href: 'https://github.com/moshcoder/search.peptides' },
+  ],
+  tagline: 'Independent lab testing and certificate of analysis findings; research information only.',
+}
 
 let html = footerHtmlSync(OPTIONS)
 
