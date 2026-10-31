@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import { config } from './config.js';
 import { close } from './db.js';
 import { buildDaemon } from './daemon.js';
-import { startPitFooterRefresh } from './pit-footer.ts';
 import { startRingFooterRefresh } from './ring-footer.ts';
 import { startRingRefresh } from './ring.ts';
 import { loadSnapshotIfEmpty } from './sync.js';
@@ -38,7 +37,6 @@ let server = null;
 const children = new Set();
 let stopping = false;
 if (config.roles.includes('web')) {
-  startPitFooterRefresh('search.peptides');
   startRingFooterRefresh();
   // Every web process listens on the same port (SO_REUSEPORT) and the kernel spreads connections,
   // so a crawler fanning out over hundreds of filter URLs is not queued behind one thread.
