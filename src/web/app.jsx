@@ -4,7 +4,6 @@ import { normalize, resolve } from 'node:path';
 import { config } from '../config.js';
 import { CHANGELOG } from '../changelog.js';
 import { handle, TOOLS } from '../mcp.js';
-import { pitFooterStyleHashes } from '../pit-footer.ts';
 import { RING_PLACEHOLDER, ringBar, visitorOnMoshpit } from '../ring.ts';
 import { DISCLOSURE, getPeptide, getVendor, listPeptides, parse, PRICE_NOTE, publicOffer, rulesReport, searchOffers, searchVendors, stats } from '../service.js';
 import { payConfigured, settle, startSponsor, verifyWebhook } from '../sponsor.js';
@@ -22,10 +21,10 @@ const SECURITY = {
   'x-frame-options': 'DENY',
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
 };
-// No 'unsafe-inline': every script is public/app.js, ads come in crawlproof's own frame, and the only
-// inline styles are the pit.world footer's <style> blocks, allowed by hash.
+// No 'unsafe-inline': scripts and styles are served from this site; the shared
+// footer ships its CSS in public/styles.css.
 const csp = () =>
-  `default-src 'self'; script-src 'self' https://crawlproof.com; style-src 'self' ${pitFooterStyleHashes().join(' ')}; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'`.replace(/ +;/g, ';');
+  `default-src 'self'; script-src 'self' https://crawlproof.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'`;
 
 app.use('*', compress());
 // /p/glutathione/ is /p/glutathione: one URL per page, so a trailing slash redirects instead of 404ing.

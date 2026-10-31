@@ -2,7 +2,6 @@ import { raw } from 'hono/html';
 import { readFileSync } from 'node:fs';
 import { config } from '../../config.js';
 import { DISCLOSURE, PRICE_NOTE, stats, syncedDay } from '../../service.js';
-import { pitFooter } from '../../pit-footer.ts';
 import { ringFooter } from '../../ring-footer.ts';
 
 // The stylesheet and script are cached for an hour; a content hash in their URLs means a deploy never pairs new markup with old assets.
@@ -142,7 +141,6 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
           <button class="btn" type="button" data-consent="no">No thanks</button>
         </div>
         {raw(ringFooter())}
-        {raw(pitFooter())}
       </body>
     </html>
   );
