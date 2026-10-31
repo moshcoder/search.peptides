@@ -126,14 +126,14 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
           {siteAd ? <aside class="cp-ad" data-cp-ad="" data-site-ad={config.crawlproofAdSlot} aria-label="Advertisement"></aside> : null}
           {children}
         </main>
-        <footer class="wrap foot">
+        <aside class="wrap foot" aria-label="Search data disclosure">
           <p class="disclosure muted small">
             {DISCLOSURE} {PRICE_NOTE}
           </p>
-          <p>
-            © {config.siteName} · <a href="/about">About</a> · <a href="/about#contact">Contact</a> · <a href="/rules">Scoring rules</a> · <a href="/methodology">How we price</a> · <a href="/sponsor">Sponsor pricing</a> · <a href="/changelog">Changelog</a> · <a href="/docs">API · CLI · MCP</a> · <a href="/llms.txt">llms.txt</a> · <a href="/privacy">Privacy</a> · <a href="/privacy#choices" data-consent-reset="">Privacy choices</a> · <a href="/terms">Terms</a> · <a href={`${REPO}/issues`}>Report a correction</a> · <a href={REPO}>Source</a>
+          <p class="small">
+            <a href="/privacy#choices" data-consent-reset="">Privacy choices</a>
           </p>
-        </footer>
+        </aside>
         <div class="consent" id="consent" role="region" aria-label="Privacy choice" hidden>
           <p>
             Count your visit? A crawlproof.com counter and ad unit keep a random id in your browser. Nothing loads unless you allow it. <a href="/privacy">Details</a>
