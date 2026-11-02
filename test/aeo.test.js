@@ -41,6 +41,25 @@ describe('answer-engine surfaces', () => {
     expect(body.match(/Disallow: \/hooks\//g).length).toBe(2);
   });
 
+  test('installable PWA: every page links the manifest, which names 192 and 512 PNG icons that serve', async () => {
+    const { res: home, body } = await get('/');
+    expect(body).toContain('<link rel="manifest" href="/manifest.webmanifest"/>');
+    expect(home.headers.get('content-security-policy')).toContain("default-src 'self'");
+    const { res, body: raw } = await get('/manifest.webmanifest');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toStartWith('application/manifest+json');
+    const m = JSON.parse(raw);
+    expect(m.name).toBeTruthy();
+    expect(m.start_url).toBe('/');
+    expect(m.display).toBe('standalone');
+    for (const size of ['192x192', '512x512']) {
+      const icon = m.icons.find((i) => i.sizes === size && i.type === 'image/png');
+      const r = (await get(icon.src)).res;
+      expect(r.status).toBe(200);
+      expect(r.headers.get('content-type')).toBe('image/png');
+    }
+  });
+
   test('security.txt, llms-full.txt and the new pages answer', async () => {
     for (const path of ['/.well-known/security.txt', '/llms-full.txt', '/methodology', '/privacy', '/terms', '/og.png']) expect((await get(path)).res.status).toBe(200);
     expect((await get('/.well-known/security.txt')).body).toMatch(/^Contact: https:\/\/github\.com\/.*\nExpires: \d{4}-/);
