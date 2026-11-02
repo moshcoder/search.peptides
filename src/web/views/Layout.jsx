@@ -80,6 +80,8 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         {adClaim ? <meta name="ad.network" content={adClaim} /> : null}
         <link rel="canonical" href={`${config.siteUrl}${path}`} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="preload" href="/fonts/Geist.woff2" as="font" type="font/woff2" crossorigin="" />
         <link rel="stylesheet" href={`/styles.css?v=${CSS_VERSION}`} />
         <link rel="alternate" type="application/json" href={api} title="This page as JSON" />
