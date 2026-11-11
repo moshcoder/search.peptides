@@ -70,14 +70,15 @@ describe('answer-engine surfaces', () => {
       const { res, body } = await get(path);
       expect(res.headers.get('content-security-policy')).not.toContain('unsafe-inline');
       const scripts = [...body.matchAll(/<script([^>]*)>/g)].map((m) => m[1]);
-      expect(scripts.every((a) => /type="application\/ld\+json"|src="\/app\.js/.test(a))).toBe(true);
+      // The WebMCP embed (no cookies, no beacons) is the one third-party script allowed before consent.
+      expect(scripts.every((a) => /type="application\/ld\+json"|src="\/app\.js|data-webmcp="" src="https:\/\/cdn\.jsdelivr\.net\/npm\/@profullstack\/webmcp@/.test(a))).toBe(true);
       expect(body).not.toMatch(/\son[a-z]+="|\sstyle="/);
       expect(body).not.toContain('crawlproof.com/stats.js');
       expect(body).toContain('id="consent"');
     }
     const vendor = (await get('/vendors')).body.match(/href="\/v\/([^"]+)"/)[1];
     const { body } = await get(`/v/${vendor}`);
-    expect([...body.matchAll(/<script([^>]*)>/g)].every((m) => /ld\+json|\/app\.js/.test(m[1]))).toBe(true);
+    expect([...body.matchAll(/<script([^>]*)>/g)].every((m) => /ld\+json|\/app\.js|data-webmcp=""/.test(m[1]))).toBe(true);
   });
 
   test('every facet count equals the results its link leads to (indexed + memoised counts)', () => {

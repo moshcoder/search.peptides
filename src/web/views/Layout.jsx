@@ -102,6 +102,15 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
         <script type="application/ld+json">{raw(JSON.stringify(graph).replace(/</g, '\\u003c'))}</script>
         {/* public/app.js loads crawlproof's counter and ads only after the visitor says yes. */}
         <script src={`/app.js?v=${JS_VERSION}`} defer data-stats={config.crawlproofSite || undefined} data-ads={siteAd ? '1' : undefined}></script>
+        {/* WebMCP: site tools + this site's /mcp server for the AI agent in the visitor's browser (@profullstack/webmcp). */}
+        <script
+          type="module"
+          data-webmcp=""
+          src="https://cdn.jsdelivr.net/npm/@profullstack/webmcp@0/src/embed.js"
+          data-mcp="/mcp"
+          data-search="/?text={query}"
+          data-pages={JSON.stringify({ vendors: '/vendors', peptides: '/peptides', methodology: '/methodology', rules: '/rules', sponsor: '/sponsor', docs: '/docs', about: '/about' })}
+        ></script>
       </head>
       <body>
         <a class="skip" href="#main">Skip to {title ?? 'the search'}</a>
@@ -111,7 +120,7 @@ export function Layout({ title, description, path = '/', jsonld, children, q = '
             <a class="brand" href="/" aria-label={`${config.siteName} home`}>
               <span class="logo" aria-hidden="true">⌬</span> {config.siteName}
             </a>
-            <form class="topsearch" action="/" method="get" role="search">
+            <form class="topsearch" action="/" method="get" role="search" toolname="search_form" tooldescription="Search peptide listings in plain words (e.g. bpc-157 lab tested under $1/mg) and show the results page" toolautosubmit="">
               <input name="text" value={q} placeholder="bpc-157 lab tested under $1/mg" aria-label="Search peptide listings" autocomplete="off" />
             </form>
             <nav>

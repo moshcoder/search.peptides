@@ -24,7 +24,7 @@ const SECURITY = {
 // No 'unsafe-inline': scripts and styles are served from this site; the shared
 // footer ships its CSS in public/styles.css.
 const csp = () =>
-  `default-src 'self'; script-src 'self' https://crawlproof.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'`;
+  `default-src 'self'; script-src 'self' https://crawlproof.com https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://crawlproof.com; frame-src https://crawlproof.com; form-action 'self' https://coinpayportal.com; base-uri 'none'; frame-ancestors 'none'`;
 
 app.use('*', compress());
 // /p/glutathione/ is /p/glutathione: one URL per page, so a trailing slash redirects instead of 404ing.
