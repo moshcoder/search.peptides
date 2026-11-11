@@ -39,6 +39,8 @@ const slimVendor = ({ shipping, discounts, payments_raw, ordering_evidence, term
 export const TOOLS = [
   {
     name: 'search_listings',
+    title: 'Search Peptide Listings',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     description: 'Search every research-peptide listing (vendor × peptide × size) and rank by USD per mg, price, vendor verification score or size. Filter by lab testing, stock, payment method, where it ships from and more. Returns listings with the vendor verification score, Finnrick rating and lab-test flags, plus facet counts.',
     inputSchema: { type: 'object', properties: LISTING_FILTERS },
     run: (a) => {
@@ -48,6 +50,8 @@ export const TOOLS = [
   },
   {
     name: 'search_vendors',
+    title: 'Search Peptide Vendors',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     description: 'Search peptide vendors by verification score (default order; null = insufficient data or unscored, never guessed), Finnrick rating, lab pass rate, payment, where they ship from, how to order and how to contact them (email, phone, WhatsApp, Telegram, socials). Each vendor carries a contact card.',
     inputSchema: {
       type: 'object',
@@ -75,6 +79,8 @@ export const TOOLS = [
   },
   {
     name: 'get_vendor',
+    title: 'Get Vendor',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     description: 'Everything about one vendor: verification score with every component (weight, points, evidence), score history, independent tests with lab, batch and public record link, contact card, every listing with price per mg, payment, shipping, coupons, how to order.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
     run: (a) => {
@@ -86,24 +92,32 @@ export const TOOLS = [
   },
   {
     name: 'get_rules',
+    title: 'Get Scoring Rules',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     description: 'How the verification score is computed: what counts as a verifiable certificate, each component with its weight and rule, the scored/insufficient/unscored thresholds, and the latest score changes across vendors.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', description: 'Recent score changes to return (default 20).' } } },
     run: (a) => rulesReport(Math.min(a.limit ?? 20, 200)),
   },
   {
     name: 'get_peptide',
+    title: 'Get Peptide',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     description: 'One peptide: how many vendors list it, cheapest USD per mg, and independent lab results by vendor.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
     run: (a) => getPeptide(a.slug) ?? { error: `no peptide ${a.slug}` },
   },
   {
     name: 'list_peptides',
+    title: 'List Peptides',
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     description: 'Every peptide in the register with vendor and listing counts, lowest USD per mg and lab pass counts.',
     inputSchema: { type: 'object', properties: {} },
     run: () => ({ ...stats(), peptides: listPeptides() }),
   },
   {
     name: 'sponsor_vendor',
+    title: 'Sponsor a Vendor',
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     description: `Start a sponsorship: $${config.sponsorUsd} pins one vendor above matching results for ${config.sponsorDays} days, always labelled Sponsored. Returns a CoinPay hosted checkout url; the buyer opens it and pays with any coin or PayPal. Nothing is charged until they pay there.`,
     inputSchema: { type: 'object', properties: { vendor: { type: 'string', description: 'Vendor slug.' }, email: { type: 'string', description: 'Email for the receipt.' } }, required: ['vendor', 'email'] },
     run: async (a) => {
